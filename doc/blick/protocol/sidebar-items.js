@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ServerMsg"],"fn":["write_binding","write_bindings"],"struct":["Info","RunRequest","RunResult"]};

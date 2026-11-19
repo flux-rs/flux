@@ -586,224 +586,255 @@
 <a href=#586 id=586 data-nosnippet>586</a>    }
 <a href=#587 id=587 data-nosnippet>587</a>}
 <a href=#588 id=588 data-nosnippet>588</a>
-<a href=#589 id=589 data-nosnippet>589</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CallKind&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#590 id=590 data-nosnippet>590</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#591 id=591 data-nosnippet>591</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#592 id=592 data-nosnippet>592</a>            CallKind::FnDef { resolved_id, resolved_args, .. } =&gt; {
-<a href=#593 id=593 data-nosnippet>593</a>                <span class="kw">let </span>fname = rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(<span class="kw-2">*</span>resolved_id));
-<a href=#594 id=594 data-nosnippet>594</a>                <span class="macro">write!</span>(f, <span class="string">"call {fname}"</span>)<span class="question-mark">?</span>;
-<a href=#595 id=595 data-nosnippet>595</a>                <span class="kw">if </span>!resolved_args.lowered.is_empty() {
-<a href=#596 id=596 data-nosnippet>596</a>                    <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, resolved_args.lowered.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
-<a href=#597 id=597 data-nosnippet>597</a>                }
-<a href=#598 id=598 data-nosnippet>598</a>                <span class="prelude-val">Ok</span>(())
+<a href=#589 id=589 data-nosnippet>589</a><span class="doccomment">/// The callee as rustc prints it in MIR: the function as written at the call site, with its generic
+<a href=#590 id=590 data-nosnippet>590</a>/// arguments (`Vec::&lt;i32&gt;::push`), or the called function pointer.
+<a href=#591 id=591 data-nosnippet>591</a></span><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CallKind&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#592 id=592 data-nosnippet>592</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#594 id=594 data-nosnippet>594</a>            CallKind::FnDef { def_id, generic_args, .. } =&gt; {
+<a href=#595 id=595 data-nosnippet>595</a>                <span class="kw">let </span>fname = rustc_middle::ty::tls::with(|tcx| {
+<a href=#596 id=596 data-nosnippet>596</a>                    tcx.def_path_str_with_args(<span class="kw-2">*</span>def_id, tcx.lift(generic_args.orig))
+<a href=#597 id=597 data-nosnippet>597</a>                });
+<a href=#598 id=598 data-nosnippet>598</a>                <span class="macro">write!</span>(f, <span class="string">"{fname}"</span>)
 <a href=#599 id=599 data-nosnippet>599</a>            }
-<a href=#600 id=600 data-nosnippet>600</a>            CallKind::FnPtr { fn_sig, operand } =&gt; <span class="macro">write!</span>(f, <span class="string">"FnPtr[{operand:?}]({fn_sig:?})"</span>),
+<a href=#600 id=600 data-nosnippet>600</a>            CallKind::FnPtr { operand, .. } =&gt; <span class="macro">write!</span>(f, <span class="string">"{operand:?}"</span>),
 <a href=#601 id=601 data-nosnippet>601</a>        }
 <a href=#602 id=602 data-nosnippet>602</a>    }
 <a href=#603 id=603 data-nosnippet>603</a>}
 <a href=#604 id=604 data-nosnippet>604</a>
-<a href=#605 id=605 data-nosnippet>605</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Terminator&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#606 id=606 data-nosnippet>606</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#607 id=607 data-nosnippet>607</a>        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-<a href=#608 id=608 data-nosnippet>608</a>            TerminatorKind::Return =&gt; <span class="macro">write!</span>(f, <span class="string">"return"</span>),
-<a href=#609 id=609 data-nosnippet>609</a>            TerminatorKind::Unreachable =&gt; <span class="macro">write!</span>(f, <span class="string">"unreachable"</span>),
-<a href=#610 id=610 data-nosnippet>610</a>            TerminatorKind::Call { kind, args, destination, target, unwind, .. } =&gt; {
-<a href=#611 id=611 data-nosnippet>611</a>                <span class="macro">write!</span>(
-<a href=#612 id=612 data-nosnippet>612</a>                    f,
-<a href=#613 id=613 data-nosnippet>613</a>                    <span class="string">"{destination:?} = call {kind:?}({args:?}) -&gt; [return: {target}, unwind: {unwind:?}]"</span>,
-<a href=#614 id=614 data-nosnippet>614</a>                    args = args.iter().format(<span class="string">", "</span>),
-<a href=#615 id=615 data-nosnippet>615</a>                    target = opt_bb_to_str(<span class="kw-2">*</span>target),
-<a href=#616 id=616 data-nosnippet>616</a>                )
-<a href=#617 id=617 data-nosnippet>617</a>            }
-<a href=#618 id=618 data-nosnippet>618</a>            TerminatorKind::SwitchInt { discr, targets } =&gt; {
-<a href=#619 id=619 data-nosnippet>619</a>                <span class="macro">write!</span>(
-<a href=#620 id=620 data-nosnippet>620</a>                    f,
-<a href=#621 id=621 data-nosnippet>621</a>                    <span class="string">"switchInt({discr:?}) -&gt; [{}, otherwise: {:?}]"</span>,
-<a href=#622 id=622 data-nosnippet>622</a>                    targets
-<a href=#623 id=623 data-nosnippet>623</a>                        .iter()
-<a href=#624 id=624 data-nosnippet>624</a>                        .format_with(<span class="string">", "</span>, |(val, bb), f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{val:?}: {bb:?}"</span>))),
-<a href=#625 id=625 data-nosnippet>625</a>                    targets.otherwise()
-<a href=#626 id=626 data-nosnippet>626</a>                )
-<a href=#627 id=627 data-nosnippet>627</a>            }
-<a href=#628 id=628 data-nosnippet>628</a>            TerminatorKind::Goto { target } =&gt; {
-<a href=#629 id=629 data-nosnippet>629</a>                <span class="macro">write!</span>(f, <span class="string">"goto -&gt; {target:?}"</span>)
-<a href=#630 id=630 data-nosnippet>630</a>            }
-<a href=#631 id=631 data-nosnippet>631</a>            TerminatorKind::Drop { place, target, unwind } =&gt; {
-<a href=#632 id=632 data-nosnippet>632</a>                <span class="macro">write!</span>(f, <span class="string">"drop({place:?}) -&gt; [{target:?}, unwind: {unwind:?}]"</span>,)
-<a href=#633 id=633 data-nosnippet>633</a>            }
-<a href=#634 id=634 data-nosnippet>634</a>            TerminatorKind::Assert { cond, target, expected, msg } =&gt; {
-<a href=#635 id=635 data-nosnippet>635</a>                <span class="macro">write!</span>(
-<a href=#636 id=636 data-nosnippet>636</a>                    f,
-<a href=#637 id=637 data-nosnippet>637</a>                    <span class="string">"assert({cond:?} is expected to be {expected:?}, \"{msg:?}\") -&gt; {target:?}"
-<a href=#638 id=638 data-nosnippet>638</a>                </span>)
-<a href=#639 id=639 data-nosnippet>639</a>            }
-<a href=#640 id=640 data-nosnippet>640</a>            TerminatorKind::FalseEdge { real_target, imaginary_target } =&gt; {
-<a href=#641 id=641 data-nosnippet>641</a>                <span class="macro">write!</span>(f, <span class="string">"falseEdge -&gt; [real: {real_target:?}, imaginary: {imaginary_target:?}]"</span>)
-<a href=#642 id=642 data-nosnippet>642</a>            }
-<a href=#643 id=643 data-nosnippet>643</a>            TerminatorKind::FalseUnwind { real_target, unwind } =&gt; {
-<a href=#644 id=644 data-nosnippet>644</a>                <span class="macro">write!</span>(f, <span class="string">"falseUnwind -&gt; [real: {real_target:?}, cleanup: {unwind:?}]"</span>)
-<a href=#645 id=645 data-nosnippet>645</a>            }
-<a href=#646 id=646 data-nosnippet>646</a>            TerminatorKind::UnwindResume =&gt; <span class="macro">write!</span>(f, <span class="string">"resume"</span>),
-<a href=#647 id=647 data-nosnippet>647</a>            TerminatorKind::CoroutineDrop =&gt; <span class="macro">write!</span>(f, <span class="string">"generator_drop"</span>),
-<a href=#648 id=648 data-nosnippet>648</a>            TerminatorKind::Yield { value, resume, drop, resume_arg } =&gt; {
-<a href=#649 id=649 data-nosnippet>649</a>                <span class="macro">write!</span>(
-<a href=#650 id=650 data-nosnippet>650</a>                    f,
-<a href=#651 id=651 data-nosnippet>651</a>                    <span class="string">"{resume_arg:?} = yield({value:?}) -&gt; [resume: {resume:?}, drop: {drop:?}]"
-<a href=#652 id=652 data-nosnippet>652</a>                </span>)
-<a href=#653 id=653 data-nosnippet>653</a>            }
-<a href=#654 id=654 data-nosnippet>654</a>        }
-<a href=#655 id=655 data-nosnippet>655</a>    }
-<a href=#656 id=656 data-nosnippet>656</a>}
-<a href=#657 id=657 data-nosnippet>657</a>
-<a href=#658 id=658 data-nosnippet>658</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Place {
-<a href=#659 id=659 data-nosnippet>659</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#660 id=660 data-nosnippet>660</a>        <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.as_ref())
-<a href=#661 id=661 data-nosnippet>661</a>    }
-<a href=#662 id=662 data-nosnippet>662</a>}
-<a href=#663 id=663 data-nosnippet>663</a>
-<a href=#664 id=664 data-nosnippet>664</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PlaceRef&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#665 id=665 data-nosnippet>665</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span><span class="kw-2">mut </span>p = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.local);
-<a href=#667 id=667 data-nosnippet>667</a>        <span class="kw">let </span><span class="kw-2">mut </span>need_parens = <span class="bool-val">false</span>;
-<a href=#668 id=668 data-nosnippet>668</a>        <span class="kw">for </span>elem <span class="kw">in </span><span class="self">self</span>.projection {
-<a href=#669 id=669 data-nosnippet>669</a>            <span class="kw">match </span>elem {
-<a href=#670 id=670 data-nosnippet>670</a>                PlaceElem::Field(f) =&gt; {
-<a href=#671 id=671 data-nosnippet>671</a>                    <span class="kw">if </span>need_parens {
-<a href=#672 id=672 data-nosnippet>672</a>                        p = <span class="macro">format!</span>(<span class="string">"({p}).{}"</span>, u32::from(<span class="kw-2">*</span>f));
-<a href=#673 id=673 data-nosnippet>673</a>                        need_parens = <span class="bool-val">false</span>;
-<a href=#674 id=674 data-nosnippet>674</a>                    } <span class="kw">else </span>{
-<a href=#675 id=675 data-nosnippet>675</a>                        p = <span class="macro">format!</span>(<span class="string">"{p}.{}"</span>, u32::from(<span class="kw-2">*</span>f));
-<a href=#676 id=676 data-nosnippet>676</a>                    }
-<a href=#677 id=677 data-nosnippet>677</a>                }
-<a href=#678 id=678 data-nosnippet>678</a>                PlaceElem::Deref =&gt; {
-<a href=#679 id=679 data-nosnippet>679</a>                    p = <span class="macro">format!</span>(<span class="string">"*{p}"</span>);
-<a href=#680 id=680 data-nosnippet>680</a>                    need_parens = <span class="bool-val">true</span>;
-<a href=#681 id=681 data-nosnippet>681</a>                }
-<a href=#682 id=682 data-nosnippet>682</a>                PlaceElem::Downcast(variant_name, variant_idx) =&gt; {
-<a href=#683 id=683 data-nosnippet>683</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(variant_name) = variant_name {
-<a href=#684 id=684 data-nosnippet>684</a>                        p = <span class="macro">format!</span>(<span class="string">"{p} as {variant_name}"</span>);
-<a href=#685 id=685 data-nosnippet>685</a>                    } <span class="kw">else </span>{
-<a href=#686 id=686 data-nosnippet>686</a>                        p = <span class="macro">format!</span>(<span class="string">"{p} as {variant_idx:?}"</span>);
-<a href=#687 id=687 data-nosnippet>687</a>                    }
-<a href=#688 id=688 data-nosnippet>688</a>                    need_parens = <span class="bool-val">true</span>;
-<a href=#689 id=689 data-nosnippet>689</a>                }
-<a href=#690 id=690 data-nosnippet>690</a>                PlaceElem::Index(v) =&gt; {
-<a href=#691 id=691 data-nosnippet>691</a>                    p = <span class="macro">format!</span>(<span class="string">"{p}[{v:?}]"</span>);
-<a href=#692 id=692 data-nosnippet>692</a>                    need_parens = <span class="bool-val">false</span>;
-<a href=#693 id=693 data-nosnippet>693</a>                }
-<a href=#694 id=694 data-nosnippet>694</a>                PlaceElem::ConstantIndex { offset, min_length, .. } =&gt; {
-<a href=#695 id=695 data-nosnippet>695</a>                    p = <span class="macro">format!</span>(<span class="string">"{p}[{offset:?} of {min_length:?}]"</span>);
-<a href=#696 id=696 data-nosnippet>696</a>                    need_parens = <span class="bool-val">false</span>;
-<a href=#697 id=697 data-nosnippet>697</a>                }
-<a href=#698 id=698 data-nosnippet>698</a>            }
-<a href=#699 id=699 data-nosnippet>699</a>        }
-<a href=#700 id=700 data-nosnippet>700</a>        <span class="macro">write!</span>(f, <span class="string">"{p}"</span>)
-<a href=#701 id=701 data-nosnippet>701</a>    }
-<a href=#702 id=702 data-nosnippet>702</a>}
-<a href=#703 id=703 data-nosnippet>703</a>
-<a href=#704 id=704 data-nosnippet>704</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Rvalue&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#705 id=705 data-nosnippet>705</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#706 id=706 data-nosnippet>706</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#707 id=707 data-nosnippet>707</a>            Rvalue::Use(op, <span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?}"</span>),
-<a href=#708 id=708 data-nosnippet>708</a>            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) =&gt; {
-<a href=#709 id=709 data-nosnippet>709</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} mut {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
-<a href=#710 id=710 data-nosnippet>710</a>            }
-<a href=#711 id=711 data-nosnippet>711</a>            Rvalue::Ref(r, BorrowKind::Shared, place) =&gt; {
-<a href=#712 id=712 data-nosnippet>712</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
-<a href=#713 id=713 data-nosnippet>713</a>            }
-<a href=#714 id=714 data-nosnippet>714</a>            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Shallow), place) =&gt; {
-<a href=#715 id=715 data-nosnippet>715</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} fake shallow {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
-<a href=#716 id=716 data-nosnippet>716</a>            }
-<a href=#717 id=717 data-nosnippet>717</a>            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Deep), place) =&gt; {
-<a href=#718 id=718 data-nosnippet>718</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} fake deep {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
-<a href=#719 id=719 data-nosnippet>719</a>            }
-<a href=#720 id=720 data-nosnippet>720</a>            Rvalue::RawPtr(mutbl, place) =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;raw {} {place:?}"</span>, mutbl.ptr_str()),
-<a href=#721 id=721 data-nosnippet>721</a>            Rvalue::Discriminant(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"discriminant({place:?})"</span>),
-<a href=#722 id=722 data-nosnippet>722</a>            Rvalue::BinaryOp(bin_op, op1, op2) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bin_op:?}({op1:?}, {op2:?})"</span>),
-<a href=#723 id=723 data-nosnippet>723</a>            Rvalue::UnaryOp(un_op, op) =&gt; <span class="macro">write!</span>(f, <span class="string">"{un_op:?}({op:?})"</span>),
-<a href=#724 id=724 data-nosnippet>724</a>            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>, <span class="kw">_</span>), operands) =&gt; {
-<a href=#725 id=725 data-nosnippet>725</a>                <span class="kw">let </span>(fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
-<a href=#726 id=726 data-nosnippet>726</a>                    <span class="kw">let </span>variant_name = tcx.adt_def(<span class="kw-2">*</span>def_id).variant(<span class="kw-2">*</span>variant_idx).name;
-<a href=#727 id=727 data-nosnippet>727</a>                    <span class="kw">let </span>fname = tcx.def_path_str(<span class="kw-2">*</span>def_id);
-<a href=#728 id=728 data-nosnippet>728</a>                    (fname, variant_name)
-<a href=#729 id=729 data-nosnippet>729</a>                });
-<a href=#730 id=730 data-nosnippet>730</a>                <span class="macro">write!</span>(f, <span class="string">"{fname}::{variant_name}"</span>)<span class="question-mark">?</span>;
-<a href=#731 id=731 data-nosnippet>731</a>                <span class="kw">if </span>!args.is_empty() {
-<a href=#732 id=732 data-nosnippet>732</a>                    <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, args.iter().format(<span class="string">", "</span>),)<span class="question-mark">?</span>;
-<a href=#733 id=733 data-nosnippet>733</a>                }
-<a href=#734 id=734 data-nosnippet>734</a>                <span class="kw">if </span>!operands.is_empty() {
-<a href=#735 id=735 data-nosnippet>735</a>                    <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, operands.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
-<a href=#736 id=736 data-nosnippet>736</a>                }
-<a href=#737 id=737 data-nosnippet>737</a>                <span class="prelude-val">Ok</span>(())
-<a href=#738 id=738 data-nosnippet>738</a>            }
-<a href=#739 id=739 data-nosnippet>739</a>            Rvalue::Aggregate(AggregateKind::Closure(def_id, args), operands) =&gt; {
-<a href=#740 id=740 data-nosnippet>740</a>                <span class="macro">write!</span>(
-<a href=#741 id=741 data-nosnippet>741</a>                    f,
-<a href=#742 id=742 data-nosnippet>742</a>                    <span class="string">"closure({}, {args:?}, {:?})"</span>,
-<a href=#743 id=743 data-nosnippet>743</a>                    def_id_to_string(<span class="kw-2">*</span>def_id),
-<a href=#744 id=744 data-nosnippet>744</a>                    operands.iter().format(<span class="string">", "</span>)
-<a href=#745 id=745 data-nosnippet>745</a>                )
-<a href=#746 id=746 data-nosnippet>746</a>            }
-<a href=#747 id=747 data-nosnippet>747</a>            Rvalue::Aggregate(AggregateKind::Coroutine(def_id, args), operands) =&gt; {
-<a href=#748 id=748 data-nosnippet>748</a>                <span class="macro">write!</span>(
-<a href=#749 id=749 data-nosnippet>749</a>                    f,
-<a href=#750 id=750 data-nosnippet>750</a>                    <span class="string">"generator({}, {args:?}, {:?})"</span>,
-<a href=#751 id=751 data-nosnippet>751</a>                    def_id_to_string(<span class="kw-2">*</span>def_id),
-<a href=#752 id=752 data-nosnippet>752</a>                    operands.iter().format(<span class="string">", "</span>)
-<a href=#753 id=753 data-nosnippet>753</a>                )
-<a href=#754 id=754 data-nosnippet>754</a>            }
-<a href=#755 id=755 data-nosnippet>755</a>            Rvalue::Aggregate(AggregateKind::Array(<span class="kw">_</span>), args) =&gt; {
-<a href=#756 id=756 data-nosnippet>756</a>                <span class="macro">write!</span>(f, <span class="string">"[{:?}]"</span>, args.iter().format(<span class="string">", "</span>))
-<a href=#757 id=757 data-nosnippet>757</a>            }
-<a href=#758 id=758 data-nosnippet>758</a>            Rvalue::Aggregate(AggregateKind::Tuple, args) =&gt; {
-<a href=#759 id=759 data-nosnippet>759</a>                <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, args.iter().format(<span class="string">", "</span>))
-<a href=#760 id=760 data-nosnippet>760</a>            }
-<a href=#761 id=761 data-nosnippet>761</a>            Rvalue::Cast(kind, op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?} as {ty:?} [{kind:?}]"</span>),
-<a href=#762 id=762 data-nosnippet>762</a>            Rvalue::Repeat(op, c) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{op:?}; {c:?}]"</span>),
-<a href=#763 id=763 data-nosnippet>763</a>        }
-<a href=#764 id=764 data-nosnippet>764</a>    }
-<a href=#765 id=765 data-nosnippet>765</a>}
-<a href=#766 id=766 data-nosnippet>766</a>
-<a href=#767 id=767 data-nosnippet>767</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PointerCast {
-<a href=#768 id=768 data-nosnippet>768</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#769 id=769 data-nosnippet>769</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#770 id=770 data-nosnippet>770</a>            PointerCast::MutToConstPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"MutToConstPointer"</span>),
-<a href=#771 id=771 data-nosnippet>771</a>            PointerCast::Unsize =&gt; <span class="macro">write!</span>(f, <span class="string">"Unsize"</span>),
-<a href=#772 id=772 data-nosnippet>772</a>            PointerCast::ClosureFnPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"ClosureFnPointer"</span>),
-<a href=#773 id=773 data-nosnippet>773</a>            PointerCast::ReifyFnPointer(safety) =&gt; <span class="macro">write!</span>(f, <span class="string">"ReifyFnPointer({safety})"</span>),
-<a href=#774 id=774 data-nosnippet>774</a>        }
-<a href=#775 id=775 data-nosnippet>775</a>    }
-<a href=#776 id=776 data-nosnippet>776</a>}
-<a href=#777 id=777 data-nosnippet>777</a>
-<a href=#778 id=778 data-nosnippet>778</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CastKind {
-<a href=#779 id=779 data-nosnippet>779</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#780 id=780 data-nosnippet>780</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#781 id=781 data-nosnippet>781</a>            CastKind::IntToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"IntToInt"</span>),
-<a href=#782 id=782 data-nosnippet>782</a>            CastKind::FloatToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"FloatToInt"</span>),
-<a href=#783 id=783 data-nosnippet>783</a>            CastKind::IntToFloat =&gt; <span class="macro">write!</span>(f, <span class="string">"IntToFloat"</span>),
-<a href=#784 id=784 data-nosnippet>784</a>            CastKind::FloatToFloat =&gt; <span class="macro">write!</span>(f, <span class="string">"FloatToFloat"</span>),
-<a href=#785 id=785 data-nosnippet>785</a>            CastKind::PtrToPtr =&gt; <span class="macro">write!</span>(f, <span class="string">"PtrToPtr"</span>),
-<a href=#786 id=786 data-nosnippet>786</a>            CastKind::PointerCoercion(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"Pointer({c:?})"</span>),
-<a href=#787 id=787 data-nosnippet>787</a>            CastKind::PointerExposeProvenance =&gt; <span class="macro">write!</span>(f, <span class="string">"PointerExposeProvenance"</span>),
-<a href=#788 id=788 data-nosnippet>788</a>            CastKind::PointerWithExposedProvenance =&gt; <span class="macro">write!</span>(f, <span class="string">"PointerWithExposedProvenance"</span>),
-<a href=#789 id=789 data-nosnippet>789</a>        }
-<a href=#790 id=790 data-nosnippet>790</a>    }
-<a href=#791 id=791 data-nosnippet>791</a>}
-<a href=#792 id=792 data-nosnippet>792</a>
-<a href=#793 id=793 data-nosnippet>793</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Operand&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#794 id=794 data-nosnippet>794</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#796 id=796 data-nosnippet>796</a>            <span class="self">Self</span>::Copy(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"copy {place:?}"</span>),
-<a href=#797 id=797 data-nosnippet>797</a>            <span class="self">Self</span>::Move(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"move {place:?}"</span>),
-<a href=#798 id=798 data-nosnippet>798</a>            <span class="self">Self</span>::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, c.const_),
-<a href=#799 id=799 data-nosnippet>799</a>        }
-<a href=#800 id=800 data-nosnippet>800</a>    }
-<a href=#801 id=801 data-nosnippet>801</a>}
-<a href=#802 id=802 data-nosnippet>802</a>
-<a href=#803 id=803 data-nosnippet>803</a><span class="kw">fn </span>opt_bb_to_str(bb: <span class="prelude-ty">Option</span>&lt;BasicBlock&gt;) -&gt; String {
-<a href=#804 id=804 data-nosnippet>804</a>    <span class="kw">match </span>bb {
-<a href=#805 id=805 data-nosnippet>805</a>        <span class="prelude-val">Some</span>(bb) =&gt; <span class="macro">format!</span>(<span class="string">"{bb:?}"</span>),
-<a href=#806 id=806 data-nosnippet>806</a>        <span class="prelude-val">None </span>=&gt; <span class="string">"None"</span>.to_string(),
-<a href=#807 id=807 data-nosnippet>807</a>    }
-<a href=#808 id=808 data-nosnippet>808</a>}
+<a href=#605 id=605 data-nosnippet>605</a><span class="doccomment">/// The outgoing edges of a terminator, as rustc prints them (see its `TerminatorKind::fmt`): the
+<a href=#606 id=606 data-nosnippet>606</a>/// successors, labeled, with a cleanup block as the `unwind` successor and any other unwind action
+<a href=#607 id=607 data-nosnippet>607</a>/// after them (`unwind continue`, ...): `-&gt; [return: bb1, unwind: bb2]`, `-&gt; [return: bb1, unwind
+<a href=#608 id=608 data-nosnippet>608</a>/// continue]`. A single successor and nothing else is printed unlabeled: `-&gt; bb2`.
+<a href=#609 id=609 data-nosnippet>609</a></span><span class="kw">fn </span>fmt_edges(
+<a href=#610 id=610 data-nosnippet>610</a>    f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#611 id=611 data-nosnippet>611</a>    succs: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, BasicBlock)],
+<a href=#612 id=612 data-nosnippet>612</a>    unwind: UnwindAction,
+<a href=#613 id=613 data-nosnippet>613</a>) -&gt; fmt::Result {
+<a href=#614 id=614 data-nosnippet>614</a>    <span class="kw">let </span><span class="kw-2">mut </span>succs = succs.to_vec();
+<a href=#615 id=615 data-nosnippet>615</a>    <span class="kw">let </span>action = <span class="kw">match </span>unwind {
+<a href=#616 id=616 data-nosnippet>616</a>        UnwindAction::Cleanup(bb) =&gt; {
+<a href=#617 id=617 data-nosnippet>617</a>            succs.push((<span class="string">"unwind"</span>, bb));
+<a href=#618 id=618 data-nosnippet>618</a>            <span class="prelude-val">None
+<a href=#619 id=619 data-nosnippet>619</a>        </span>}
+<a href=#620 id=620 data-nosnippet>620</a>        UnwindAction::Continue =&gt; <span class="prelude-val">Some</span>(<span class="string">"continue"</span>.to_string()),
+<a href=#621 id=621 data-nosnippet>621</a>        UnwindAction::Unreachable =&gt; <span class="prelude-val">Some</span>(<span class="string">"unreachable"</span>.to_string()),
+<a href=#622 id=622 data-nosnippet>622</a>        UnwindAction::Terminate(reason) =&gt; <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"terminate({})"</span>, reason.as_short_str())),
+<a href=#623 id=623 data-nosnippet>623</a>    };
+<a href=#624 id=624 data-nosnippet>624</a>    <span class="kw">match </span>(<span class="kw-2">&amp;</span>succs[..], action) {
+<a href=#625 id=625 data-nosnippet>625</a>        ([], <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#626 id=626 data-nosnippet>626</a>        ([], <span class="prelude-val">Some</span>(a)) =&gt; <span class="macro">write!</span>(f, <span class="string">" -&gt; unwind {a}"</span>),
+<a href=#627 id=627 data-nosnippet>627</a>        ([(<span class="kw">_</span>, bb)], <span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">" -&gt; {bb:?}"</span>),
+<a href=#628 id=628 data-nosnippet>628</a>        (succs, a) =&gt; {
+<a href=#629 id=629 data-nosnippet>629</a>            <span class="kw">let </span>succs = succs
+<a href=#630 id=630 data-nosnippet>630</a>                .iter()
+<a href=#631 id=631 data-nosnippet>631</a>                .format_with(<span class="string">", "</span>, |(l, bb), f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{l}: {bb:?}"</span>)));
+<a href=#632 id=632 data-nosnippet>632</a>            <span class="macro">write!</span>(f, <span class="string">" -&gt; [{succs}"</span>)<span class="question-mark">?</span>;
+<a href=#633 id=633 data-nosnippet>633</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(a) = a {
+<a href=#634 id=634 data-nosnippet>634</a>                <span class="macro">write!</span>(f, <span class="string">", unwind {a}"</span>)<span class="question-mark">?</span>;
+<a href=#635 id=635 data-nosnippet>635</a>            }
+<a href=#636 id=636 data-nosnippet>636</a>            <span class="macro">write!</span>(f, <span class="string">"]"</span>)
+<a href=#637 id=637 data-nosnippet>637</a>        }
+<a href=#638 id=638 data-nosnippet>638</a>    }
+<a href=#639 id=639 data-nosnippet>639</a>}
+<a href=#640 id=640 data-nosnippet>640</a>
+<a href=#641 id=641 data-nosnippet>641</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Terminator&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#642 id=642 data-nosnippet>642</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#643 id=643 data-nosnippet>643</a>        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+<a href=#644 id=644 data-nosnippet>644</a>            TerminatorKind::Return =&gt; <span class="macro">write!</span>(f, <span class="string">"return"</span>),
+<a href=#645 id=645 data-nosnippet>645</a>            TerminatorKind::Unreachable =&gt; <span class="macro">write!</span>(f, <span class="string">"unreachable"</span>),
+<a href=#646 id=646 data-nosnippet>646</a>            TerminatorKind::Call { kind, args, destination, target, unwind, .. } =&gt; {
+<a href=#647 id=647 data-nosnippet>647</a>                <span class="macro">write!</span>(f, <span class="string">"{destination:?} = {kind:?}({:?})"</span>, args.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
+<a href=#648 id=648 data-nosnippet>648</a>                <span class="kw">let </span>ret = target.map(|bb| (<span class="string">"return"</span>, bb));
+<a href=#649 id=649 data-nosnippet>649</a>                fmt_edges(f, ret.as_slice(), <span class="kw-2">*</span>unwind)
+<a href=#650 id=650 data-nosnippet>650</a>            }
+<a href=#651 id=651 data-nosnippet>651</a>            TerminatorKind::SwitchInt { discr, targets } =&gt; {
+<a href=#652 id=652 data-nosnippet>652</a>                <span class="macro">write!</span>(
+<a href=#653 id=653 data-nosnippet>653</a>                    f,
+<a href=#654 id=654 data-nosnippet>654</a>                    <span class="string">"switchInt({discr:?}) -&gt; [{}, otherwise: {:?}]"</span>,
+<a href=#655 id=655 data-nosnippet>655</a>                    targets
+<a href=#656 id=656 data-nosnippet>656</a>                        .iter()
+<a href=#657 id=657 data-nosnippet>657</a>                        .format_with(<span class="string">", "</span>, |(val, bb), f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{val:?}: {bb:?}"</span>))),
+<a href=#658 id=658 data-nosnippet>658</a>                    targets.otherwise()
+<a href=#659 id=659 data-nosnippet>659</a>                )
+<a href=#660 id=660 data-nosnippet>660</a>            }
+<a href=#661 id=661 data-nosnippet>661</a>            TerminatorKind::Goto { target } =&gt; {
+<a href=#662 id=662 data-nosnippet>662</a>                <span class="macro">write!</span>(f, <span class="string">"goto -&gt; {target:?}"</span>)
+<a href=#663 id=663 data-nosnippet>663</a>            }
+<a href=#664 id=664 data-nosnippet>664</a>            TerminatorKind::Drop { place, target, unwind } =&gt; {
+<a href=#665 id=665 data-nosnippet>665</a>                <span class="macro">write!</span>(f, <span class="string">"drop({place:?}) -&gt; [{target:?}, unwind: {unwind:?}]"</span>,)
+<a href=#666 id=666 data-nosnippet>666</a>            }
+<a href=#667 id=667 data-nosnippet>667</a>            TerminatorKind::Assert { cond, target, expected, msg } =&gt; {
+<a href=#668 id=668 data-nosnippet>668</a>                <span class="macro">write!</span>(
+<a href=#669 id=669 data-nosnippet>669</a>                    f,
+<a href=#670 id=670 data-nosnippet>670</a>                    <span class="string">"assert({cond:?} is expected to be {expected:?}, \"{msg:?}\") -&gt; {target:?}"
+<a href=#671 id=671 data-nosnippet>671</a>                </span>)
+<a href=#672 id=672 data-nosnippet>672</a>            }
+<a href=#673 id=673 data-nosnippet>673</a>            TerminatorKind::FalseEdge { real_target, imaginary_target } =&gt; {
+<a href=#674 id=674 data-nosnippet>674</a>                <span class="macro">write!</span>(f, <span class="string">"falseEdge -&gt; [real: {real_target:?}, imaginary: {imaginary_target:?}]"</span>)
+<a href=#675 id=675 data-nosnippet>675</a>            }
+<a href=#676 id=676 data-nosnippet>676</a>            TerminatorKind::FalseUnwind { real_target, unwind } =&gt; {
+<a href=#677 id=677 data-nosnippet>677</a>                <span class="macro">write!</span>(f, <span class="string">"falseUnwind"</span>)<span class="question-mark">?</span>;
+<a href=#678 id=678 data-nosnippet>678</a>                fmt_edges(f, <span class="kw-2">&amp;</span>[(<span class="string">"real"</span>, <span class="kw-2">*</span>real_target)], <span class="kw-2">*</span>unwind)
+<a href=#679 id=679 data-nosnippet>679</a>            }
+<a href=#680 id=680 data-nosnippet>680</a>            TerminatorKind::UnwindResume =&gt; <span class="macro">write!</span>(f, <span class="string">"resume"</span>),
+<a href=#681 id=681 data-nosnippet>681</a>            TerminatorKind::CoroutineDrop =&gt; <span class="macro">write!</span>(f, <span class="string">"generator_drop"</span>),
+<a href=#682 id=682 data-nosnippet>682</a>            TerminatorKind::Yield { value, resume, drop, resume_arg } =&gt; {
+<a href=#683 id=683 data-nosnippet>683</a>                <span class="macro">write!</span>(
+<a href=#684 id=684 data-nosnippet>684</a>                    f,
+<a href=#685 id=685 data-nosnippet>685</a>                    <span class="string">"{resume_arg:?} = yield({value:?}) -&gt; [resume: {resume:?}, drop: {drop:?}]"
+<a href=#686 id=686 data-nosnippet>686</a>                </span>)
+<a href=#687 id=687 data-nosnippet>687</a>            }
+<a href=#688 id=688 data-nosnippet>688</a>        }
+<a href=#689 id=689 data-nosnippet>689</a>    }
+<a href=#690 id=690 data-nosnippet>690</a>}
+<a href=#691 id=691 data-nosnippet>691</a>
+<a href=#692 id=692 data-nosnippet>692</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Place {
+<a href=#693 id=693 data-nosnippet>693</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#694 id=694 data-nosnippet>694</a>        <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.as_ref())
+<a href=#695 id=695 data-nosnippet>695</a>    }
+<a href=#696 id=696 data-nosnippet>696</a>}
+<a href=#697 id=697 data-nosnippet>697</a>
+<a href=#698 id=698 data-nosnippet>698</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PlaceRef&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#699 id=699 data-nosnippet>699</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#700 id=700 data-nosnippet>700</a>        <span class="kw">let </span><span class="kw-2">mut </span>p = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.local);
+<a href=#701 id=701 data-nosnippet>701</a>        <span class="kw">let </span><span class="kw-2">mut </span>need_parens = <span class="bool-val">false</span>;
+<a href=#702 id=702 data-nosnippet>702</a>        <span class="kw">for </span>elem <span class="kw">in </span><span class="self">self</span>.projection {
+<a href=#703 id=703 data-nosnippet>703</a>            <span class="kw">match </span>elem {
+<a href=#704 id=704 data-nosnippet>704</a>                PlaceElem::Field(f) =&gt; {
+<a href=#705 id=705 data-nosnippet>705</a>                    <span class="kw">if </span>need_parens {
+<a href=#706 id=706 data-nosnippet>706</a>                        p = <span class="macro">format!</span>(<span class="string">"({p}).{}"</span>, u32::from(<span class="kw-2">*</span>f));
+<a href=#707 id=707 data-nosnippet>707</a>                        need_parens = <span class="bool-val">false</span>;
+<a href=#708 id=708 data-nosnippet>708</a>                    } <span class="kw">else </span>{
+<a href=#709 id=709 data-nosnippet>709</a>                        p = <span class="macro">format!</span>(<span class="string">"{p}.{}"</span>, u32::from(<span class="kw-2">*</span>f));
+<a href=#710 id=710 data-nosnippet>710</a>                    }
+<a href=#711 id=711 data-nosnippet>711</a>                }
+<a href=#712 id=712 data-nosnippet>712</a>                PlaceElem::Deref =&gt; {
+<a href=#713 id=713 data-nosnippet>713</a>                    p = <span class="macro">format!</span>(<span class="string">"*{p}"</span>);
+<a href=#714 id=714 data-nosnippet>714</a>                    need_parens = <span class="bool-val">true</span>;
+<a href=#715 id=715 data-nosnippet>715</a>                }
+<a href=#716 id=716 data-nosnippet>716</a>                PlaceElem::Downcast(variant_name, variant_idx) =&gt; {
+<a href=#717 id=717 data-nosnippet>717</a>                    <span class="kw">if let </span><span class="prelude-val">Some</span>(variant_name) = variant_name {
+<a href=#718 id=718 data-nosnippet>718</a>                        p = <span class="macro">format!</span>(<span class="string">"{p} as {variant_name}"</span>);
+<a href=#719 id=719 data-nosnippet>719</a>                    } <span class="kw">else </span>{
+<a href=#720 id=720 data-nosnippet>720</a>                        p = <span class="macro">format!</span>(<span class="string">"{p} as {variant_idx:?}"</span>);
+<a href=#721 id=721 data-nosnippet>721</a>                    }
+<a href=#722 id=722 data-nosnippet>722</a>                    need_parens = <span class="bool-val">true</span>;
+<a href=#723 id=723 data-nosnippet>723</a>                }
+<a href=#724 id=724 data-nosnippet>724</a>                PlaceElem::Index(v) =&gt; {
+<a href=#725 id=725 data-nosnippet>725</a>                    p = <span class="macro">format!</span>(<span class="string">"{p}[{v:?}]"</span>);
+<a href=#726 id=726 data-nosnippet>726</a>                    need_parens = <span class="bool-val">false</span>;
+<a href=#727 id=727 data-nosnippet>727</a>                }
+<a href=#728 id=728 data-nosnippet>728</a>                PlaceElem::ConstantIndex { offset, min_length, .. } =&gt; {
+<a href=#729 id=729 data-nosnippet>729</a>                    p = <span class="macro">format!</span>(<span class="string">"{p}[{offset:?} of {min_length:?}]"</span>);
+<a href=#730 id=730 data-nosnippet>730</a>                    need_parens = <span class="bool-val">false</span>;
+<a href=#731 id=731 data-nosnippet>731</a>                }
+<a href=#732 id=732 data-nosnippet>732</a>            }
+<a href=#733 id=733 data-nosnippet>733</a>        }
+<a href=#734 id=734 data-nosnippet>734</a>        <span class="macro">write!</span>(f, <span class="string">"{p}"</span>)
+<a href=#735 id=735 data-nosnippet>735</a>    }
+<a href=#736 id=736 data-nosnippet>736</a>}
+<a href=#737 id=737 data-nosnippet>737</a>
+<a href=#738 id=738 data-nosnippet>738</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Rvalue&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#739 id=739 data-nosnippet>739</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#740 id=740 data-nosnippet>740</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#741 id=741 data-nosnippet>741</a>            Rvalue::Use(op, <span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?}"</span>),
+<a href=#742 id=742 data-nosnippet>742</a>            Rvalue::Ref(r, BorrowKind::Mut { .. }, place) =&gt; {
+<a href=#743 id=743 data-nosnippet>743</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} mut {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
+<a href=#744 id=744 data-nosnippet>744</a>            }
+<a href=#745 id=745 data-nosnippet>745</a>            Rvalue::Ref(r, BorrowKind::Shared, place) =&gt; {
+<a href=#746 id=746 data-nosnippet>746</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
+<a href=#747 id=747 data-nosnippet>747</a>            }
+<a href=#748 id=748 data-nosnippet>748</a>            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Shallow), place) =&gt; {
+<a href=#749 id=749 data-nosnippet>749</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} fake shallow {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
+<a href=#750 id=750 data-nosnippet>750</a>            }
+<a href=#751 id=751 data-nosnippet>751</a>            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Deep), place) =&gt; {
+<a href=#752 id=752 data-nosnippet>752</a>                <span class="macro">write!</span>(f, <span class="string">"&amp;{} fake deep {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
+<a href=#753 id=753 data-nosnippet>753</a>            }
+<a href=#754 id=754 data-nosnippet>754</a>            Rvalue::RawPtr(mutbl, place) =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;raw {} {place:?}"</span>, mutbl.ptr_str()),
+<a href=#755 id=755 data-nosnippet>755</a>            Rvalue::Discriminant(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"discriminant({place:?})"</span>),
+<a href=#756 id=756 data-nosnippet>756</a>            Rvalue::BinaryOp(bin_op, op1, op2) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bin_op:?}({op1:?}, {op2:?})"</span>),
+<a href=#757 id=757 data-nosnippet>757</a>            Rvalue::UnaryOp(un_op, op) =&gt; <span class="macro">write!</span>(f, <span class="string">"{un_op:?}({op:?})"</span>),
+<a href=#758 id=758 data-nosnippet>758</a>            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>, <span class="kw">_</span>), operands) =&gt; {
+<a href=#759 id=759 data-nosnippet>759</a>                <span class="kw">let </span>(fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
+<a href=#760 id=760 data-nosnippet>760</a>                    <span class="kw">let </span>variant_name = tcx.adt_def(<span class="kw-2">*</span>def_id).variant(<span class="kw-2">*</span>variant_idx).name;
+<a href=#761 id=761 data-nosnippet>761</a>                    <span class="kw">let </span>fname = tcx.def_path_str(<span class="kw-2">*</span>def_id);
+<a href=#762 id=762 data-nosnippet>762</a>                    (fname, variant_name)
+<a href=#763 id=763 data-nosnippet>763</a>                });
+<a href=#764 id=764 data-nosnippet>764</a>                <span class="macro">write!</span>(f, <span class="string">"{fname}::{variant_name}"</span>)<span class="question-mark">?</span>;
+<a href=#765 id=765 data-nosnippet>765</a>                <span class="kw">if </span>!args.is_empty() {
+<a href=#766 id=766 data-nosnippet>766</a>                    <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, args.iter().format(<span class="string">", "</span>),)<span class="question-mark">?</span>;
+<a href=#767 id=767 data-nosnippet>767</a>                }
+<a href=#768 id=768 data-nosnippet>768</a>                <span class="kw">if </span>!operands.is_empty() {
+<a href=#769 id=769 data-nosnippet>769</a>                    <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, operands.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
+<a href=#770 id=770 data-nosnippet>770</a>                }
+<a href=#771 id=771 data-nosnippet>771</a>                <span class="prelude-val">Ok</span>(())
+<a href=#772 id=772 data-nosnippet>772</a>            }
+<a href=#773 id=773 data-nosnippet>773</a>            Rvalue::Aggregate(AggregateKind::Closure(def_id, args), operands) =&gt; {
+<a href=#774 id=774 data-nosnippet>774</a>                <span class="macro">write!</span>(
+<a href=#775 id=775 data-nosnippet>775</a>                    f,
+<a href=#776 id=776 data-nosnippet>776</a>                    <span class="string">"closure({}, {args:?}, {:?})"</span>,
+<a href=#777 id=777 data-nosnippet>777</a>                    def_id_to_string(<span class="kw-2">*</span>def_id),
+<a href=#778 id=778 data-nosnippet>778</a>                    operands.iter().format(<span class="string">", "</span>)
+<a href=#779 id=779 data-nosnippet>779</a>                )
+<a href=#780 id=780 data-nosnippet>780</a>            }
+<a href=#781 id=781 data-nosnippet>781</a>            Rvalue::Aggregate(AggregateKind::Coroutine(def_id, args), operands) =&gt; {
+<a href=#782 id=782 data-nosnippet>782</a>                <span class="macro">write!</span>(
+<a href=#783 id=783 data-nosnippet>783</a>                    f,
+<a href=#784 id=784 data-nosnippet>784</a>                    <span class="string">"generator({}, {args:?}, {:?})"</span>,
+<a href=#785 id=785 data-nosnippet>785</a>                    def_id_to_string(<span class="kw-2">*</span>def_id),
+<a href=#786 id=786 data-nosnippet>786</a>                    operands.iter().format(<span class="string">", "</span>)
+<a href=#787 id=787 data-nosnippet>787</a>                )
+<a href=#788 id=788 data-nosnippet>788</a>            }
+<a href=#789 id=789 data-nosnippet>789</a>            Rvalue::Aggregate(AggregateKind::Array(<span class="kw">_</span>), args) =&gt; {
+<a href=#790 id=790 data-nosnippet>790</a>                <span class="macro">write!</span>(f, <span class="string">"[{:?}]"</span>, args.iter().format(<span class="string">", "</span>))
+<a href=#791 id=791 data-nosnippet>791</a>            }
+<a href=#792 id=792 data-nosnippet>792</a>            Rvalue::Aggregate(AggregateKind::Tuple, args) =&gt; {
+<a href=#793 id=793 data-nosnippet>793</a>                <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, args.iter().format(<span class="string">", "</span>))
+<a href=#794 id=794 data-nosnippet>794</a>            }
+<a href=#795 id=795 data-nosnippet>795</a>            Rvalue::Cast(kind, op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?} as {ty:?} [{kind:?}]"</span>),
+<a href=#796 id=796 data-nosnippet>796</a>            Rvalue::Repeat(op, c) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{op:?}; {c:?}]"</span>),
+<a href=#797 id=797 data-nosnippet>797</a>        }
+<a href=#798 id=798 data-nosnippet>798</a>    }
+<a href=#799 id=799 data-nosnippet>799</a>}
+<a href=#800 id=800 data-nosnippet>800</a>
+<a href=#801 id=801 data-nosnippet>801</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PointerCast {
+<a href=#802 id=802 data-nosnippet>802</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#803 id=803 data-nosnippet>803</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#804 id=804 data-nosnippet>804</a>            PointerCast::MutToConstPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"MutToConstPointer"</span>),
+<a href=#805 id=805 data-nosnippet>805</a>            PointerCast::Unsize =&gt; <span class="macro">write!</span>(f, <span class="string">"Unsize"</span>),
+<a href=#806 id=806 data-nosnippet>806</a>            PointerCast::ClosureFnPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"ClosureFnPointer"</span>),
+<a href=#807 id=807 data-nosnippet>807</a>            PointerCast::ReifyFnPointer(safety) =&gt; <span class="macro">write!</span>(f, <span class="string">"ReifyFnPointer({safety})"</span>),
+<a href=#808 id=808 data-nosnippet>808</a>        }
+<a href=#809 id=809 data-nosnippet>809</a>    }
+<a href=#810 id=810 data-nosnippet>810</a>}
+<a href=#811 id=811 data-nosnippet>811</a>
+<a href=#812 id=812 data-nosnippet>812</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CastKind {
+<a href=#813 id=813 data-nosnippet>813</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#814 id=814 data-nosnippet>814</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#815 id=815 data-nosnippet>815</a>            CastKind::IntToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"IntToInt"</span>),
+<a href=#816 id=816 data-nosnippet>816</a>            CastKind::FloatToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"FloatToInt"</span>),
+<a href=#817 id=817 data-nosnippet>817</a>            CastKind::IntToFloat =&gt; <span class="macro">write!</span>(f, <span class="string">"IntToFloat"</span>),
+<a href=#818 id=818 data-nosnippet>818</a>            CastKind::FloatToFloat =&gt; <span class="macro">write!</span>(f, <span class="string">"FloatToFloat"</span>),
+<a href=#819 id=819 data-nosnippet>819</a>            CastKind::PtrToPtr =&gt; <span class="macro">write!</span>(f, <span class="string">"PtrToPtr"</span>),
+<a href=#820 id=820 data-nosnippet>820</a>            CastKind::PointerCoercion(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"Pointer({c:?})"</span>),
+<a href=#821 id=821 data-nosnippet>821</a>            CastKind::PointerExposeProvenance =&gt; <span class="macro">write!</span>(f, <span class="string">"PointerExposeProvenance"</span>),
+<a href=#822 id=822 data-nosnippet>822</a>            CastKind::PointerWithExposedProvenance =&gt; <span class="macro">write!</span>(f, <span class="string">"PointerWithExposedProvenance"</span>),
+<a href=#823 id=823 data-nosnippet>823</a>        }
+<a href=#824 id=824 data-nosnippet>824</a>    }
+<a href=#825 id=825 data-nosnippet>825</a>}
+<a href=#826 id=826 data-nosnippet>826</a>
+<a href=#827 id=827 data-nosnippet>827</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Operand&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#828 id=828 data-nosnippet>828</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#829 id=829 data-nosnippet>829</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#830 id=830 data-nosnippet>830</a>            <span class="self">Self</span>::Copy(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"copy {place:?}"</span>),
+<a href=#831 id=831 data-nosnippet>831</a>            <span class="self">Self</span>::Move(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"move {place:?}"</span>),
+<a href=#832 id=832 data-nosnippet>832</a>            <span class="comment">// like rustc: function items are printed by name, without `const`
+<a href=#833 id=833 data-nosnippet>833</a>            </span><span class="self">Self</span>::Constant(c) <span class="kw">if </span><span class="macro">matches!</span>(c.const_.ty().kind(), rustc_middle::ty::FnDef(..)) =&gt; {
+<a href=#834 id=834 data-nosnippet>834</a>                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, c.const_)
+<a href=#835 id=835 data-nosnippet>835</a>            }
+<a href=#836 id=836 data-nosnippet>836</a>            <span class="self">Self</span>::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"const {}"</span>, c.const_),
+<a href=#837 id=837 data-nosnippet>837</a>        }
+<a href=#838 id=838 data-nosnippet>838</a>    }
+<a href=#839 id=839 data-nosnippet>839</a>}
 </code></pre></div></section></main></body></html>
