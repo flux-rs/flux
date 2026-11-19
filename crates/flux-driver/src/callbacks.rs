@@ -27,6 +27,7 @@ use rustc_hir::{
 use rustc_interface::interface::Compiler;
 use rustc_middle::{queries, ty::TyCtxt, util};
 use rustc_session::config::OutputType;
+use rustc_span::{Symbol, sym};
 
 use crate::collector::SpecCollector;
 
@@ -50,10 +51,56 @@ impl Callbacks for FluxCallbacks {
         }
     }
 
+    fn after_crate_root_parsing(
+        &mut self,
+        compiler: &Compiler,
+        krate: &mut rustc_ast::Crate,
+    ) -> Compilation {
+        inject_crate_attrs(compiler, krate);
+        Compilation::Continue
+    }
+
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
         self.verify(compiler, tcx);
         if config::full_compilation() { Compilation::Continue } else { Compilation::Stop }
     }
+}
+
+/// Injects the crate-level attributes Flux needs (`#![feature(register_tool)]`,
+/// `#![feature(custom_inner_attributes)]`, `#![register_tool(flux)]` and
+/// `#![register_tool(flux_tool)]`), skipping those the crate already declares. Passing them
+/// unconditionally with `-Zcrate-attr` fails with `duplicate_features` on crates that enable
+/// the features themselves (e.g., `core`).
+fn inject_crate_attrs(compiler: &Compiler, krate: &mut rustc_ast::Crate) {
+    const FEATURES: [&str; 2] = ["register_tool", "custom_inner_attributes"];
+    const TOOLS: [&str; 2] = ["flux", "flux_tool"];
+
+    let declared = |attr_name: Symbol, item: &str| {
+        krate.attrs.iter().any(|attr| {
+            attr.style == rustc_ast::AttrStyle::Inner
+                && attr.has_name(attr_name)
+                && attr.meta_item_list().is_some_and(|items| {
+                    items
+                        .iter()
+                        .any(|it| it.ident().is_some_and(|id| id.name.as_str() == item))
+                })
+        })
+    };
+
+    let missing_features: Vec<&str> = FEATURES
+        .into_iter()
+        .filter(|feature| !declared(sym::feature, feature))
+        .collect();
+    let mut attrs = vec![];
+    if !missing_features.is_empty() {
+        attrs.push(format!("feature({})", missing_features.join(", ")));
+    }
+    for tool in TOOLS {
+        if !declared(sym::register_tool, tool) {
+            attrs.push(format!("register_tool({tool})"));
+        }
+    }
+    rustc_builtin_macros::cmdline_attrs::inject(krate, &compiler.sess.psess, &attrs);
 }
 
 impl FluxCallbacks {

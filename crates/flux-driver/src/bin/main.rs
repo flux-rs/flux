@@ -50,9 +50,6 @@ fn run() -> io::Result<ExitCode> {
     }
 
     args.push("-Coverflow-checks=off".to_string());
-    args.push("-Zcrate-attr=feature(register_tool, custom_inner_attributes)".to_string());
-    args.push("-Zcrate-attr=register_tool(flux)".to_string());
-    args.push("-Zcrate-attr=register_tool(flux_tool)".to_string());
     args.push("--cfg=flux".to_string());
 
     let start = std::time::Instant::now();
