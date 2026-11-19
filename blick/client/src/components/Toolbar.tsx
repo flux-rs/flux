@@ -19,7 +19,7 @@ export function Toolbar({ fn, mode, kind }: { fn: Fn; mode: Mode; kind: ViewKind
         {[...fn.modes.keys()].map(m => <ToggleGroup.Item key={m} value={m}>{m}</ToggleGroup.Item>)}
       </ToggleGroup.Root>
       <ToggleGroup.Root type="single" className="tabs" aria-label="View" value={kind === "block" ? "" : kind}
-        onValueChange={v => v && go({ kind: v as ViewKind, bbs: [] })}>
+        onValueChange={v => v && go({ kind: v as ViewKind, cols: [] })}>
         <ToggleGroup.Item value="graph" title="Control-flow graph (Esc)">Graph</ToggleGroup.Item>
         <ToggleGroup.Item value="all" title="Every block with environments">All blocks</ToggleGroup.Item>
       </ToggleGroup.Root>

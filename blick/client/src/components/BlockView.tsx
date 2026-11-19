@@ -1,12 +1,17 @@
-// The block views: the open blocks side by side ("block"), or every block of the mode ("all"),
-// each statement followed by the environment after it.
+// The block views: the open blocks in columns ("block"), or every block of the mode ("all"),
+// each statement followed by the environment after it. The open blocks are moved between columns,
+// and into new ones, by dragging their headers.
 
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { curProgram, go, setHoverRow, setSelRow, toggleCollapsed, toggleFold, useStore, type ViewState } from "../store";
+import {
+  type BlockDrop, closeBlock, curProgram, go, moveBlock, movedCols, openBlocks, setHoverRow, setSelRow, toggleCollapsed,
+  toggleFold, useStore, type ViewState,
+} from "../store";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Section, type SecItem, type Sep } from "../trace/model";
 import { envBindings, matchClose, rcxFacts } from "../trace/text";
+import { type DropBar, hitTest } from "./blockDrop";
 import { ChevronIcon, GhostIcon } from "./icons";
 import { BindingView, commaList, Local, localHoverHandlers, ptrHoverHandlers, Rich } from "./text";
 
@@ -39,6 +44,8 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   const lhover = useMemo(() => localHoverHandlers(ref), []);
   const ptrhover = useStore(s => s.ui.ptrhover);
   const lochover = useStore(s => s.ui.lochover);
+  // the open blocks as a set: moving them around is not a new view
+  const openKey = [...view.cols.flat()].sort().join(",");
   // turned off while hovering: clear the highlights (and arrows)
   useEffect(() => {
     if (!ptrhover) hover.onMouseLeave();
@@ -48,11 +55,45 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   // a new view starts at the top
   useEffect(() => {
     ref.current?.scrollTo(0, 0);
-  }, [fn.id, view.kind, view.bbs.join(",")]);
+  }, [fn.id, view.kind, openKey]);
   // rows that go away with the view get no `mouseleave`
-  useEffect(() => () => setHoverRow(null), [fn.id, mode.name, view.kind, view.bbs.join(",")]);
+  useEffect(() => () => setHoverRow(null), [fn.id, mode.name, view.kind, openKey]);
 
-  useHotkeys("escape", () => go({ kind: "graph", bbs: [] }));
+  // ---- dragging open blocks ----
+  const colsRef = useRef<HTMLDivElement>(null);
+  const dragBb = useRef<string | null>(null);
+  /** the header was pressed on one of its controls (visit tabs, close): that starts no drag */
+  const pressOnControl = useRef(false);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [drop, setDrop] = useState<{ drop: BlockDrop; bar: DropBar } | null>(null);
+  const endDrag = () => {
+    dragBb.current = null;
+    setDragging(null);
+    setDrop(null);
+  };
+  const dragHandlers = single ? {
+    onDragOver: (e: React.DragEvent) => {
+      const bb = dragBb.current;
+      if (!bb || !colsRef.current) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const hit = hitTest(colsRef.current, e.clientX, e.clientY);
+      // no bar where the drop would change nothing
+      const next = hit && JSON.stringify(movedCols(view.cols, bb, hit.drop)) !== JSON.stringify(view.cols) ? hit : null;
+      setDrop(cur => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next));
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrop(null);
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      if (dragBb.current && drop) moveBlock(dragBb.current, drop.drop);
+      // the dragged block may be re-rendered in another column, and then gets no `dragend`
+      endDrag();
+    },
+  } : {};
+
+  useHotkeys("escape", () => go({ kind: "graph", cols: [] }));
   // move the row selection down / up
   useHotkeys(["j", "k"], e => {
     const rows = [...(ref.current?.querySelectorAll<HTMLElement>(".row[data-id]") ?? [])];
@@ -68,10 +109,30 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   /** A block's section; `visitTabs`, in its header, picks which visit of the block is shown. */
   const section = (s: Section, visitTabs?: ReactNode) => {
     const isCollapsed = !single && collapsed.includes(String(s.idx));
-    const closable = single && view.bbs.length > 1;
+    const closable = single && view.cols.flat().length > 1;
+    const drag = single ? {
+      draggable: true,
+      title: "Drag to move this block to another column, or to a new one",
+      onMouseDown: (e: React.MouseEvent) => {
+        pressOnControl.current = !!(e.target as HTMLElement).closest("button, [role=group]");
+      },
+      onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
+        if (pressOnControl.current) return e.preventDefault();
+        dragBb.current = s.bb;
+        e.dataTransfer.effectAllowed = "move";
+        // Firefox starts a drag only with some data
+        e.dataTransfer.setData("text/plain", s.bb);
+        // the whole block follows the pointer, not just its header
+        const sec = e.currentTarget.parentElement!;
+        const r = sec.getBoundingClientRect();
+        e.dataTransfer.setDragImage(sec, e.clientX - r.left, e.clientY - r.top);
+        setDragging(s.bb);
+      },
+      onDragEnd: endDrag,
+    } : {};
     return (
       <div className="sec" key={s.idx}>
-        <div className={single ? "hd" : "hd click"} onClick={single ? undefined : () => toggleCollapsed(String(s.idx))}>
+        <div className={single ? "hd" : "hd click"} onClick={single ? undefined : () => toggleCollapsed(String(s.idx))} {...drag}>
           {!single && <span className="tw"><ChevronIcon open={!isCollapsed} /></span>}
           <span className="bb">{s.bb}</span>
           {/* in the open blocks, the visit is picked with tabs */}
@@ -79,7 +140,7 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
           {visitTabs}
           {closable && (
             <button className="bbclose" aria-label={`Close ${s.bb}`} title={`Close ${s.bb}`}
-              onClick={() => go({ kind: "block", bbs: view.bbs.filter(b => b !== s.bb) })}>
+              onClick={() => closeBlock(s.bb)}>
               ×
             </button>
           )}
@@ -100,15 +161,22 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
       onMouseLeave={() => {
         hover.onMouseLeave();
         lhover.onMouseLeave();
-      }}>
+      }}
+      {...dragHandlers}>
       {single && (
         <div className="nav">
-          <a className="crumb" onClick={() => go({ kind: "graph", bbs: [] })}>{fn.id}</a>
+          <a className="crumb" onClick={() => go({ kind: "graph", cols: [] })}>{fn.id}</a>
           <span className="slash">/</span>
-          {view.bbs.map((bb, i) => (
-            <span key={bb} className="navbbs">
-              {i > 0 && <span className="slash">+</span>}
-              <span className="cur">{bb}</span>
+          {/* the columns, separated by `|`; the blocks of a column by `+` */}
+          {view.cols.map((col, ci) => (
+            <span key={ci} className="navbbs">
+              {ci > 0 && <span className="slash">|</span>}
+              {col.map((bb, i) => (
+                <span key={bb} className="navbbs">
+                  {i > 0 && <span className="slash">+</span>}
+                  <span className="cur">{bb}</span>
+                </span>
+              ))}
             </span>
           ))}
           <span className="pill">{mode.name}</span>
@@ -151,23 +219,33 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
         </div>
       )}
       {single ? (
-        // one column per open block, with one of its visits, picked with tabs above it
-        <div className="cols" style={{ "--ncols": view.bbs.length } as React.CSSProperties}>
-          {view.bbs.map(bb => {
-            const secs = mode.sections.filter(s => s.bb === bb);
-            const key = `${fn.id}|${mode.name}|${bb}`;
-            const pick = Math.min(visits[key] ?? secs.length - 1, secs.length - 1);
-            return (
-              <div className="col" key={bb}>
-                {secs[pick] && section(secs[pick], secs.length > 1 && (
-                  <ToggleGroup.Root type="single" className="tabs visits" aria-label={`Visits of ${bb}`} value={String(pick)}
-                    onValueChange={v => v && setVisits(vs => ({ ...vs, [key]: +v }))}>
-                    {secs.map((s, i) => <ToggleGroup.Item key={s.idx} value={String(i)}>visit {s.visit}</ToggleGroup.Item>)}
-                  </ToggleGroup.Root>
-                ))}
-              </div>
-            );
-          })}
+        // the columns of open blocks, each block with one of its visits, picked with tabs above it
+        <div className="cols" ref={colsRef} style={{ "--ncols": view.cols.length } as React.CSSProperties}>
+          {view.cols.map((col, ci) => (
+            <div className="col" key={ci}>
+              {col.map(bb => {
+                const secs = mode.sections.filter(s => s.bb === bb);
+                const key = `${fn.id}|${mode.name}|${bb}`;
+                const pick = Math.min(visits[key] ?? secs.length - 1, secs.length - 1);
+                return (
+                  <div className={dragging === bb ? "cblk dragging" : "cblk"} key={bb}>
+                    {secs[pick] && section(secs[pick], secs.length > 1 && (
+                      <ToggleGroup.Root type="single" className="tabs visits" aria-label={`Visits of ${bb}`} value={String(pick)}
+                        onValueChange={v => v && setVisits(vs => ({ ...vs, [key]: +v }))}>
+                        {secs.map((s, i) => <ToggleGroup.Item key={s.idx} value={String(i)}>visit {s.visit}</ToggleGroup.Item>)}
+                      </ToggleGroup.Root>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          {drop && (
+            <div className={`dropbar ${drop.bar.dir}`}
+              style={drop.bar.dir === "v"
+                ? { left: drop.bar.x, top: drop.bar.y, height: drop.bar.len }
+                : { left: drop.bar.x, top: drop.bar.y, width: drop.bar.len }} />
+          )}
         </div>
       ) : (
         mode.sections.map(section)
@@ -302,7 +380,7 @@ function renderBody(c: BodyCtx, s: Section): ReactNode {
       closeGroup();
       const sep: Sep = pendingSep;
       const target = sep.target
-        ? <span className="bblink" title={`Open ${sep.target}`} onClick={() => go({ kind: "block", bbs: [sep.target!] })}>{sep.target}</span>
+        ? <span className="bblink" title={`Open ${sep.target}`} onClick={() => openBlocks([sep.target!])}>{sep.target}</span>
         : "";
       outer.push(<div key={`e${outer.length}`} className="edge"><span>{edgeLabel(sep, target)}</span></div>);
       group = [];

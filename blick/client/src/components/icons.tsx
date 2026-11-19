@@ -61,3 +61,22 @@ export function ChevronIcon({ open }: { open: boolean }) {
     </svg>
   );
 }
+
+/** A folder. */
+export function FolderIcon() {
+  return (
+    <svg className="odicon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
+      <path d="M1.8 4.2a1 1 0 0 1 1-1h3.4l1.5 1.6h5.5a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z" />
+    </svg>
+  );
+}
+
+/** A page with a folded corner: a file. */
+export function FileIcon() {
+  return (
+    <svg className="odicon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
+      <path d="M3.5 1.8h6l3 3v9.4h-9z" />
+      <path d="M9.5 1.8v3h3" />
+    </svg>
+  );
+}

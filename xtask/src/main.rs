@@ -66,7 +66,8 @@ xflags::xflags! {
         cmd build-sysroot { }
         /// Build the documentation
         cmd doc { }
-        /// Start blick, which runs Flux on programs and shows its checker trace in the browser
+        /// Start blick, which runs Flux on programs and shows its checker trace in the browser. The
+        /// page can open the regression tests in `tests/tests`
         cmd blick {
             /// The port to listen on (on 127.0.0.1). Default 8765
             optional --port port: u16
@@ -400,6 +401,8 @@ fn blick(args: &Blick, offline: bool) -> anyhow::Result<()> {
         .args_if(offline, ["--offline"])
         .arg("--")
         .args_if_some(args.port, |port| ["--port".to_string(), port.to_string()])
+        // the regression tests, to open in the page
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/tests"))
         .run()
 }
 

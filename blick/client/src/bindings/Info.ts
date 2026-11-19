@@ -3,4 +3,8 @@
 /**
  * `GET /api/info`, shown in the page's status line.
  */
-export type Info = { command: string, repo: string, };
+export type Info = { command: string, repo: string, 
+/**
+ * The folder of programs the page can open (see `GET /api/files`), if blick was given one.
+ */
+dir: string | null, };

@@ -2,8 +2,8 @@
 
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useState } from "react";
-import { activate, addProgram, closeProgram, isDirty, renameProgram, setUi, useStore } from "../store";
-import { MOD, MonitorIcon, MoonIcon, PaneIcon, SunIcon } from "./icons";
+import { activate, addProgram, closeProgram, isDirty, renameProgram, setOpening, setUi, useStore } from "../store";
+import { FolderIcon, MOD, MonitorIcon, MoonIcon, PaneIcon, SunIcon } from "./icons";
 
 export function Header({ onTogglePane }: { onTogglePane: () => void }) {
   const programs = useStore(s => s.programs);
@@ -11,6 +11,7 @@ export function Header({ onTogglePane }: { onTogglePane: () => void }) {
   const runs = useStore(s => s.runs);
   const srcOpen = useStore(s => s.ui.srcOpen);
   const theme = useStore(s => s.ui.theme);
+  const filesDir = useStore(s => s.filesDir);
   const [renaming, setRenaming] = useState<number | null>(null);
   const paneLabel = `${srcOpen ? "Hide" : "Show"} program pane (${MOD}+B)`;
 
@@ -28,7 +29,7 @@ export function Header({ onTogglePane }: { onTogglePane: () => void }) {
           const dirty = isDirty(p, r);
           return (
             <div key={p.id} className={`ptab${p.id === active ? " on" : ""}`} role="tab" aria-selected={p.id === active}
-              title={`${p.name}: ${stTitle}${dirty ? ", edited since the last run" : ""}. Double-click to rename.`}
+              title={`${p.path ? `${p.path}\n` : ""}${p.name}: ${stTitle}${dirty ? ", edited since the last run" : ""}. Double-click to rename.`}
               onClick={() => activate(p.id)}
               onDoubleClick={() => setRenaming(p.id)}
               // Middle click closes a tab, as in browsers and editors.
@@ -61,6 +62,11 @@ export function Header({ onTogglePane }: { onTogglePane: () => void }) {
         })}
         <button id="padd" aria-label="New program" title="New program" onClick={addProgram}>+</button>
       </div>
+      {filesDir && (
+        <button id="openbtn" title={`Open a program from ${filesDir} (${MOD}+P)`} onClick={() => setOpening(true)}>
+          <FolderIcon /> Open
+        </button>
+      )}
       <ToggleGroup.Root type="single" id="theme" className="tabs" aria-label="Theme" value={theme ?? "system"}
         onValueChange={v => v && setUi({ theme: v === "system" ? null : (v as "light" | "dark") })}>
         <ToggleGroup.Item value="light" title="Light" aria-label="Light theme"><SunIcon /></ToggleGroup.Item>

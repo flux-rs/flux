@@ -13,7 +13,7 @@ createRoot(document.getElementById("root")!).render(
 );
 
 fetchInfo()
-  .then(info => setServerInfo(`Runs ${info.command} in ${info.repo}`))
+  .then(info => setServerInfo(`Runs ${info.command} in ${info.repo}`, info.dir))
   .catch(() => setServerInfo("Server not reachable. Is blick running?"));
 watchReload();
 loadRuns();

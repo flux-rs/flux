@@ -16,9 +16,12 @@ export interface ViewState {
   fnId: string | null;
   mode: string | null;
   kind: ViewKind;
-  /** the blocks open side by side in the block view */
-  bbs: string[];
+  /** the blocks open in the block view: columns side by side, each a stack of blocks; never an empty column */
+  cols: string[][];
 }
+
+/** Where a dragged block goes: a new column before column `at`, or into column `col` before its block `at`. */
+export type BlockDrop = { kind: "newcol"; at: number } | { kind: "into"; col: number; at: number };
 
 export interface Program {
   id: number;
@@ -26,6 +29,8 @@ export interface Program {
   /** the user named the tab; otherwise it is named after the program's first function */
   nameSet: boolean;
   source: string;
+  /** the file the program was opened from, relative to the server's folder of programs */
+  path?: string;
   flags: string;
   view: ViewState;
   /** "fn|mode|section:item": statements the user collapsed */
@@ -78,6 +83,8 @@ export interface Ui {
   editorFontSize: number;
   /** vim keybindings in the editor */
   vim: boolean;
+  /** the folder the open dialog was last in, relative to the server's folder of programs */
+  openDir: string;
 }
 
 export const EDITOR_FONT_SIZE = 14;
@@ -90,13 +97,19 @@ interface State {
   runs: Record<number, Run>;
   running: boolean;
   serverInfo: string;
+  /** the server's folder of programs, if it has one (then the page can open them) */
+  filesDir: string | null;
+  /** whether the dialog to open a program is open */
+  opening: boolean;
+  /** the programs opened last, most recent first */
+  recent: string[];
   /** the selected statement row: "<section idx>:<item i>" */
   selRow: string | null;
   /** the statement row under the pointer, same format as `selRow` */
   hoverRow: string | null;
 }
 
-const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", bbs: [] });
+const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", cols: [] });
 const emptyRun = (): Run => ({
   data: null, trace: "", mir: [], ranSource: null, ranFlags: null, status: "none", statusText: "", statusErr: false,
   noTrace: false, buildLog: [],
@@ -119,28 +132,37 @@ function newProgram(id: number, others: Program[]): Program {
 export const useStore = create<State>()(
   persist(
     (): State => ({
-      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, ptrhover: true, lochover: true, srcOpen: true, editorFontSize: EDITOR_FONT_SIZE, vim: false },
+      ui: { theme: null, hideinert: true, hidelt: false, localnames: true, ptrhover: true, lochover: true, srcOpen: true, editorFontSize: EDITOR_FONT_SIZE, vim: false, openDir: "" },
       programs: [newProgram(1, [])],
       active: 1,
       nextId: 2,
       runs: {},
       running: false,
       serverInfo: "",
+      filesDir: null,
+      opening: false,
+      recent: [],
       selRow: null,
       hoverRow: null,
     }),
     {
       name: "blick",
-      partialize: s => ({ ui: s.ui, programs: s.programs, active: s.active, nextId: s.nextId }),
+      partialize: s => ({ ui: s.ui, programs: s.programs, active: s.active, nextId: s.nextId, recent: s.recent }),
       // options added since the state was saved get their defaults
       merge: (persisted, current) => {
         const p = persisted as Partial<State>;
-        const programs = p.programs?.map(q => ({ ...newProgram(q.id, []), ...q }));
+        const programs = p.programs?.map(q => ({ ...newProgram(q.id, []), ...q, view: migrateView(q.view) }));
         return { ...current, ...p, ui: { ...current.ui, ...p.ui }, ...(programs ? { programs } : {}) };
       },
     },
   ),
 );
+
+/** A view saved before the open blocks were columns: one column per block. */
+function migrateView(v: ViewState & { bbs?: string[] }): ViewState {
+  const { bbs, ...rest } = v;
+  return { ...rest, cols: rest.cols ?? (bbs ?? []).map(bb => [bb]) };
+}
 
 const set = useStore.setState;
 const get = useStore.getState;
@@ -161,8 +183,8 @@ export function resolveView(data: Trace | null, v: ViewState): { fn: Fn; mode: M
   if (!mode) return null;
   let view = v;
   if (v.kind === "block") {
-    const bbs = v.bbs.filter(bb => mode.sections.some(s => s.bb === bb));
-    view = bbs.length ? { ...v, bbs } : { ...v, kind: "graph", bbs: [] };
+    const cols = v.cols.map(col => col.filter(bb => mode.sections.some(s => s.bb === bb))).filter(col => col.length);
+    view = cols.length ? { ...v, cols } : { ...v, kind: "graph", cols: [] };
   }
   return { fn, mode, view: { ...view, fnId: fn.id, mode: mode.name } };
 }
@@ -244,8 +266,34 @@ export function go(patch: Partial<ViewState>) {
   set({ selRow: null });
 }
 
+/** Opens the blocks `bbs` in the block view, one column each. */
+export function openBlocks(bbs: string[]) {
+  go({ kind: "block", cols: bbs.map(bb => [bb]) });
+}
+
+/** The open blocks with `bb` closed; its column goes if it was the only block in it. */
+export function closeBlock(bb: string) {
+  const cols = curProgram(get()).view.cols.map(col => col.filter(b => b !== bb)).filter(col => col.length);
+  go({ cols });
+}
+
+/** The columns `cols` with `bb` moved to `drop` (positions in `cols` before the move). */
+export function movedCols(cols: string[][], bb: string, drop: BlockDrop): string[][] {
+  // `bb` is marked where it was and removed after the insert, so `drop`'s positions stay valid
+  const MARK = "\0";
+  const out = cols.map(col => col.map(b => (b === bb ? MARK : b)));
+  if (drop.kind === "newcol") out.splice(drop.at, 0, [bb]);
+  else out[drop.col].splice(drop.at, 0, bb);
+  return out.map(col => col.filter(b => b !== MARK)).filter(col => col.length);
+}
+
+/** Moves the open block `bb` to `drop`. Keeps the selected row, which moves with its block. */
+export function moveBlock(bb: string, drop: BlockDrop) {
+  updateProgram(get().active, p => ({ view: { ...p.view, cols: movedCols(p.view.cols, bb, drop) } }));
+}
+
 export function selectFn(fnId: string) {
-  go({ fnId, kind: "graph", bbs: [] });
+  go({ fnId, kind: "graph", cols: [] });
   updateProgram(get().active, () => ({ collapsed: [] }));
 }
 
@@ -288,8 +336,39 @@ export function setHidden(fnId: string, locs: string[]) {
   updateProgram(get().active, p => ({ hidden: { ...p.hidden, [fnId]: locs } }));
 }
 
-export function setServerInfo(serverInfo: string) {
-  set({ serverInfo });
+export function setServerInfo(serverInfo: string, filesDir: string | null = null) {
+  set({ serverInfo, filesDir });
+}
+
+export function setOpening(opening: boolean) {
+  set({ opening });
+}
+
+const MAX_RECENT = 10;
+
+/**
+ * Opens the program `source` read from `path`: in the tab already showing that file, if it was not
+ * edited since; else in the active tab, if it is empty and was never run; else in a new tab.
+ */
+export function openProgram(path: string, source: string) {
+  const s = get();
+  const recent = [path, ...s.recent.filter(p => p !== path)].slice(0, MAX_RECENT);
+  const name = path.slice(path.lastIndexOf("/") + 1).replace(/\.rs$/, "");
+  const same = s.programs.find(p => p.path === path && p.source === source);
+  if (same) {
+    set({ recent, active: same.id, selRow: null });
+    return;
+  }
+  const cur = curProgram(s);
+  if (!cur.source.trim() && !s.runs[cur.id]) {
+    updateProgram(cur.id, () => ({ source, path, name, nameSet: true }));
+    set({ recent, selRow: null });
+    return;
+  }
+  set(t => {
+    const p = { ...newProgram(t.nextId, t.programs), source, path, name, nameSet: true };
+    return { programs: [...t.programs, p], nextId: t.nextId + 1, active: p.id, recent, selRow: null };
+  });
 }
 
 // ---- running Flux ----
@@ -341,6 +420,9 @@ export async function runFlux() {
       : out.elapsed == null ? "Run failed (see the output)"
       : out.exit === null ? `timed out${when}`
       : `cargo x run exited with ${out.exit}${when} (see the output)`;
+    // The new trace has new graphs (and nodes of other sizes): their state is cleared before the
+    // trace is set, so the graph view, remounted for it, never reads the old run's state.
+    updateProgram(id, () => ({ graphs: {} }));
     updateRun(id, () => ({
       status: out.ok ? "ok" : "err", statusText, statusErr: !out.ok, ranSource: source, ranFlags: flags,
       // Keep the view state when re-running: it is restored if the function still exists.
@@ -349,9 +431,7 @@ export async function runFlux() {
       mir: out.mir,
       noTrace: !out.trace,
     }));
-    // The new trace has new graphs (and nodes of other sizes). Statement ids may name other
-    // statements in it.
-    updateProgram(id, () => ({ graphs: {} }));
+    // Statement ids may name other statements in the new trace.
     if (get().active === id) set({ selRow: null });
   } catch (e) {
     cancelAnimationFrame(frame);

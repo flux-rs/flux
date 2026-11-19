@@ -6,10 +6,12 @@ import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from "react-re
 import { BlockView } from "./components/BlockView";
 import { GraphView } from "./components/GraphView";
 import { Header } from "./components/Header";
+import { MOD } from "./components/icons";
+import { OpenDialog } from "./components/OpenDialog";
 import { ProgramPane } from "./components/ProgramPane";
 import { TextCtx } from "./components/text";
 import { Toolbar } from "./components/Toolbar";
-import { curProgram, curRun, resolveView, selectFn, setSelRow, setUi, useStore } from "./store";
+import { curProgram, curRun, resolveView, selectFn, setOpening, setSelRow, setUi, useStore } from "./store";
 import type { Fn, Trace } from "./trace/model";
 
 export function App() {
@@ -29,6 +31,9 @@ export function App() {
   };
   // VS Code's shortcut for its side bar
   useHotkeys("mod+b", togglePane, { preventDefault: true, enableOnFormTags: true, enableOnContentEditable: true });
+  // VS Code's Quick Open
+  useHotkeys("mod+p", () => useStore.getState().filesDir && setOpening(true),
+    { preventDefault: true, enableOnFormTags: true, enableOnContentEditable: true });
 
   // A click anywhere that isn't a statement row or a control clears the selected row.
   useEffect(() => {
@@ -62,6 +67,7 @@ export function App() {
           </Panel>
         </Group>
       </main>
+      <OpenDialog />
     </>
   );
 }
@@ -70,6 +76,7 @@ function TraceArea() {
   const prog = useStore(curProgram);
   const run = useStore(curRun);
   const ui = useStore(s => s.ui);
+  const filesDir = useStore(s => s.filesDir);
   const tv = resolveView(run.data, prog.view);
 
   let content;
@@ -83,7 +90,8 @@ function TraceArea() {
           </p>
         ) : (
           <p className="empty">
-            Nothing loaded yet. Paste a program in the <strong>Input</strong> pane and run Flux on it.
+            Nothing loaded yet. Paste a program in the <strong>Input</strong> pane and run Flux on it
+            {filesDir ? <>, or open one of the programs in <code>{filesDir}</code> (<kbd>{MOD}</kbd>+<kbd>P</kbd>)</> : null}.
             <br />
             In the graph, double-click a block to see its environments and drag blocks to move them. Click a statement to
             highlight what it changed. <kbd>j</kbd> and <kbd>k</kbd> move between statements; <kbd>Esc</kbd> goes back to
