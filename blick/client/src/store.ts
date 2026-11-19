@@ -7,7 +7,7 @@ import { persist } from "zustand/middleware";
 import { runOverSocket } from "./api";
 import { plain } from "./components/Ansi";
 import { deleteRun, loadRun, saveRun } from "./persist";
-import { parseTrace, type Fn, type Mode, type Trace } from "./trace/model";
+import { parseRun, type Fn, type Mode, type Trace } from "./trace/model";
 
 export type ViewKind = "graph" | "all" | "block";
 
@@ -52,6 +52,8 @@ export interface Run {
   data: Trace | null;
   /** the trace as Flux wrote it */
   trace: string;
+  /** the MIR of the bodies, as rustc dumped it */
+  mir: string[];
   ranSource: string | null;
   ranFlags: string | null;
   status: RunStatus;
@@ -96,7 +98,7 @@ interface State {
 
 const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", bbs: [] });
 const emptyRun = (): Run => ({
-  data: null, trace: "", ranSource: null, ranFlags: null, status: "none", statusText: "", statusErr: false,
+  data: null, trace: "", mir: [], ranSource: null, ranFlags: null, status: "none", statusText: "", statusErr: false,
   noTrace: false, buildLog: [],
 });
 
@@ -342,8 +344,9 @@ export async function runFlux() {
     updateRun(id, () => ({
       status: out.ok ? "ok" : "err", statusText, statusErr: !out.ok, ranSource: source, ranFlags: flags,
       // Keep the view state when re-running: it is restored if the function still exists.
-      data: out.trace ? parseTrace(out.trace) : null,
+      data: parseRun(out.trace, out.mir),
       trace: out.trace,
+      mir: out.mir,
       noTrace: !out.trace,
     }));
     // The new trace has new graphs (and nodes of other sizes). Statement ids may name other
@@ -370,6 +373,6 @@ export async function loadRuns() {
     const saved = await loadRun(p.id);
     // a run started in the meantime wins
     if (!saved || get().runs[p.id]) return;
-    updateRun(p.id, () => ({ ...saved, status: saved.status === "running" ? "none" : saved.status, data: saved.trace ? parseTrace(saved.trace) : null }));
+    updateRun(p.id, () => ({ ...saved, status: saved.status === "running" ? "none" : saved.status, mir: saved.mir ?? [], data: parseRun(saved.trace, saved.mir ?? []) }));
   }));
 }

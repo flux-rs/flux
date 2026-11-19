@@ -122,7 +122,7 @@ function Graph({ fn, mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKe
           sourceHandle: back ? "bout" : `out${k}`, targetHandle: back ? "bin" : "in",
           label: e.label || undefined,
           className: ["e", e.aux ? "aux" : "", back ? "back" : ""].join(" "),
-          markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: back ? "var(--goto)" : "var(--edge)" },
+          markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "var(--edge)" },
           selectable: false, focusable: false,
         });
       });

@@ -1,4 +1,6 @@
-// The trace model: parsing the checker trace. Pure functions, no DOM.
+// The trace model: parsing the checker trace (and, see mir.ts, the MIR). Pure functions, no DOM.
+
+import { addMir, type MirLocal } from "./mir";
 //
 // A trace is JSON lines written by `tracing` (see `crates/flux-common/src/dbg.rs`):
 //   {fields: {event, ...}, span: {name: <mode>, def_id: <function>}}
@@ -87,6 +89,8 @@ export interface Fn {
   solution: Kvar[] | null;
   /** local (`_3`) -> source name */
   names: Map<string, string>;
+  /** the locals' declarations, from the MIR; null without it */
+  locals: MirLocal[] | null;
 }
 
 export interface Trace {
@@ -123,6 +127,13 @@ interface ModeBuilder {
   lastGoto: Item | null;
 }
 
+/** A run's trace and MIR dumps (either may be empty); null if there is nothing to show. */
+export function parseRun(trace: string, mir: string[]): Trace | null {
+  const t = trace ? parseTrace(trace) : { fns: [] };
+  addMir(t.fns, mir);
+  return t.fns.length ? t : null;
+}
+
 export function parseTrace(text: string): Trace {
   const fns = new Map<string, Fn>();
   const builders = new Map<Mode, ModeBuilder>();
@@ -141,7 +152,7 @@ export function parseTrace(text: string): Trace {
     if (!sp.def_id) continue;
     let fn = fns.get(sp.def_id);
     if (!fn) {
-      fn = { id: sp.def_id, modes: new Map(), solution: null, names: new Map() };
+      fn = { id: sp.def_id, modes: new Map(), solution: null, names: new Map(), locals: null };
       fns.set(sp.def_id, fn);
     }
     // Statement events carry each local's source name (none for temporaries). A local keeps its
@@ -286,7 +297,7 @@ function srcLoc(j: unknown): SrcLoc | null {
 }
 
 /** `/path/to/input.rs:3:5: 3:10` -> `input.rs:3:5` */
-function shortSpan(s: string | undefined): string {
+export function shortSpan(s: string | undefined): string {
   if (!s) return "";
   const m = /([^/]+\.rs):(\d+):(\d+)/.exec(s);
   return m ? `${m[1]}:${m[2]}:${m[3]}` : s;

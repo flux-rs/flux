@@ -177,8 +177,7 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
    its header. */
 .outpanel { height: 100%; display: flex; flex-direction: column; }
 .outpanel .summary { all: unset; box-sizing: border-box; display: block; width: 100%; flex: none; padding: 6px 10px; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; user-select: none; }
-.outpanel .summary::before { content: "▸"; display: inline-block; width: 12px; }
-.outpanel.open .summary::before { content: "▾"; }
+.outpanel .summary .chev { vertical-align: -2px; }
 .outpanel .summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .outpanel.has-err .summary { color: var(--blocked); }
 #buildcount { font-weight: 400; letter-spacing: 0; text-transform: none; font-family: var(--mono); }
@@ -234,7 +233,6 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
   --xy-attribution-background-color: transparent;
 }
 .react-flow__edge.aux .react-flow__edge-path { stroke-dasharray: 5 4; }
-.react-flow__edge.back .react-flow__edge-path { stroke: var(--goto); }
 .react-flow__edge-text { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
 /* the global button style would squash the controls' icons */
 .react-flow__controls-button { padding: 0; border-radius: 0; line-height: normal; }
@@ -268,7 +266,10 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
 .sec > .hd { display: flex; gap: 10px; align-items: baseline; padding: 6px 12px; user-select: none; font-family: var(--mono); font-size: 13px; background: var(--sunken); }
 .sec > .hd.click { cursor: pointer; }
 .sec > .hd.click:hover { background: var(--hover); }
-.sec > .hd .tw { width: 12px; color: var(--muted); }
+.sec > .hd .tw { width: 12px; color: var(--muted); align-self: center; line-height: 0; }
+/* the chevron of a collapsible section (ChevronIcon): turned down when open */
+.chev { flex: none; transition: transform .12s; }
+.chev.open { transform: rotate(90deg); }
 .sec > .hd .bb { font-weight: 700; }
 .sec > .hd .meta { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sec > .hd .bbclose { margin-left: auto; border: 0; background: transparent; padding: 0 6px; font-size: 16px; line-height: 16px; color: var(--muted); border-radius: 4px; }
@@ -281,6 +282,8 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
 .row::before { content: ""; position: absolute; inset: 1px 0; background: var(--stmt-bg); z-index: -1; pointer-events: none; }
 .row:hover::before { background: var(--hover); }
 .row.sel::before { background: var(--sel); box-shadow: inset 2px 0 0 var(--accent); }
+/* without environments between them (the MIR), rows are not banded: stacked bands look striped */
+.noenv .row:not(:hover):not(.sel)::before { background: none; }
 .row.ghost::before { background: var(--ghost-bg); }
 .row.folded::before { display: none; }
 .row.sel { background: var(--sel); box-shadow: inset 2px 0 0 var(--accent); }
@@ -294,7 +297,7 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
 /* the toggle is a CSS triangle: pointing down (expanded) or right (folded) */
 .row .tg::before { content: ""; display: inline-block; vertical-align: middle; border-style: solid; border-color: transparent; }
 .row:not(.folded) .tg::before { border-width: 6px 4.5px 0 4.5px; border-top-color: currentColor; }
-.row.folded .tg::before { border-width: 3.5px 0 3.5px 5px; border-left-color: currentColor; }
+.row.folded .tg::before { border-width: 4.5px 0 4.5px 6px; border-left-color: currentColor; }
 .row.folded { align-items: center; min-height: 9px; padding: 0 0 0 22px; }
 .row.folded .tg { line-height: 9px; top: 0; }
 .row.folded .fl { flex: 1; border-top: 1px dashed var(--muted); }

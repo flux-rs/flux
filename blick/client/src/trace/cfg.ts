@@ -27,8 +27,11 @@ export interface Cfg {
   back: Set<string>;
 }
 
-/** `goto -> bb4`, `switchInt(..) -> [0: bb1, otherwise: bb3]`, `_0 = f() -> [return: bb2, unwind continue]` */
-export function parseSuccs(term: string): Succ[] {
+/**
+ * `goto -> bb4`, `switchInt(..) -> [0: bb1, otherwise: bb3]`, `_0 = f() -> [return: bb2, unwind continue]`.
+ * Unwind edges (to cleanup blocks) are dropped, or with `unwind` kept as imaginary edges.
+ */
+export function parseSuccs(term: string, unwind = false): Succ[] {
   const i = term.lastIndexOf("->");
   if (i < 0) return [];
   const rest = term.slice(i + 2).trim();
@@ -41,7 +44,10 @@ export function parseSuccs(term: string): Succ[] {
     const m = /^\s*(?:([^:]+):\s*)?(bb\d+)\s*$/.exec(part);
     if (!m) continue;
     const label = (m[1] || "").trim();
-    if (/^(unwind|cleanup)$/.test(label)) continue;
+    if (/^(unwind|cleanup)$/.test(label)) {
+      if (unwind) out.push({ to: m[2], label: "unwind", aux: true });
+      continue;
+    }
     out.push({ to: m[2], label: /^(real|return)$/.test(label) ? "" : label, aux: label === "imaginary" });
   }
   return out;
@@ -65,7 +71,8 @@ export function buildCfg(mode: Mode): Cfg {
   for (const n of nodes.values()) {
     const s = n.secs[0];
     if (s.kind === "entry") n.succs = nodes.has("bb0") ? [{ to: "bb0", label: "", aux: false }] : [];
-    else if (s.term) n.succs = parseSuccs(s.term.text);
+    // the MIR has the cleanup blocks, the checker does not check them
+    else if (s.term) n.succs = parseSuccs(s.term.text, mode.name === "mir");
   }
   for (const n of [...nodes.values()]) for (const e of n.succs) node(e.to).preds.push(n.bb);
   const root = nodes.has("entry") ? "entry" : "bb0";

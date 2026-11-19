@@ -14,6 +14,10 @@ exit: number | null,
  */
 trace: string, 
 /**
+ * The MIR of each body, as rustc dumps it (`-Zdump-mir=renumber`), with spans.
+ */
+mir: Array<string>, 
+/**
  * Seconds the run took.
  */
 elapsed: number | null, };

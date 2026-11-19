@@ -1,6 +1,8 @@
 //! Running Flux on a program: `cargo x run <file> -- -Fdump-checker-trace=debug` from the
 //! repository root, so Flux and its sysroot are rebuilt when needed, exactly as on the command
-//! line. Its output is streamed as it is printed; Flux writes the trace to a file.
+//! line. Its output is streamed as it is printed; Flux writes the trace to a file, and rustc the
+//! MIR of each body (`-Zdump-mir=renumber`: the body borrow checking, and so Flux, works on) to a
+//! directory.
 
 use std::{
     io::{BufRead, BufReader},
@@ -59,6 +61,7 @@ pub async fn run(
     std::fs::write(&src, source)?;
     let src_str = src.to_string_lossy().into_owned();
     let log_dir = tmp.path().join("log");
+    let mir_dir = tmp.path().join("mir");
     let mut args: Vec<String> = vec![
         "x".into(),
         "run".into(),
@@ -67,6 +70,9 @@ pub async fn run(
         "--color=always".into(),
         "-Fdump-checker-trace=debug".into(),
         format!("-Flog-dir={}", log_dir.display()),
+        "-Zdump-mir=renumber".into(),
+        format!("-Zdump-mir-dir={}", mir_dir.display()),
+        "-Zmir-include-spans=on".into(),
     ];
     args.extend(extra_flags.iter().cloned());
     let shown = |s: &str| s.replace(&src_str, SRC_NAME);
@@ -127,5 +133,21 @@ pub async fn run(
     let trace = std::fs::read(log_dir.join("checker"))
         .map(|b| String::from_utf8_lossy(&b).into_owned())
         .unwrap_or_default();
-    Ok(RunResult { ok: code == Some(0), exit: code, trace, elapsed: Some(elapsed) })
+    let mir = read_mir_dumps(&mir_dir);
+    Ok(RunResult { ok: code == Some(0), exit: code, trace, mir, elapsed: Some(elapsed) })
+}
+
+/// The `.mir` files in `dir`, in file name order; none if rustc wrote none.
+fn read_mir_dumps(dir: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return vec![] };
+    let mut paths: Vec<_> = entries
+        .filter_map(|e| Some(e.ok()?.path()))
+        .filter(|p| p.extension().is_some_and(|e| e == "mir"))
+        .collect();
+    paths.sort();
+    paths
+        .iter()
+        .filter_map(|p| std::fs::read(p).ok())
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .collect()
 }

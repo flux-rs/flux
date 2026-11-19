@@ -6,7 +6,7 @@ import { Group, Panel, type PanelImperativeHandle, Separator, useDefaultLayout, 
 import { curProgram, curRun, EDITOR_FONT_SIZE, resolveView, runFlux, setFlags, setUi, useStore, zoomEditor } from "../store";
 import { AnsiPre } from "./Ansi";
 import { Editor, type LineRange } from "./Editor";
-import { MOD } from "./icons";
+import { ChevronIcon, MOD } from "./icons";
 
 /** height of a collapsed output panel: its header */
 const HDR = 29;
@@ -103,7 +103,7 @@ function OutputPanel({ id, panelRef, title, err, children }: {
       <div className={`outpanel${err ? " has-err" : ""}${open ? " open" : ""}`}>
         <button className="summary" aria-expanded={open}
           onClick={() => (panelRef.current?.isCollapsed() ? panelRef.current.expand() : panelRef.current?.collapse())}>
-          {title}
+          <ChevronIcon open={open} /> {title}
         </button>
         {open && children}
       </div>

@@ -38,6 +38,8 @@ pub struct RunResult {
     pub exit: Option<i32>,
     /// The checker trace (`log/checker`); empty if Flux did not write one.
     pub trace: String,
+    /// The MIR of each body, as rustc dumps it (`-Zdump-mir=renumber`), with spans.
+    pub mir: Vec<String>,
     /// Seconds the run took.
     pub elapsed: Option<f64>,
 }
@@ -45,7 +47,7 @@ pub struct RunResult {
 impl RunResult {
     /// A run that failed before `cargo x run` could finish; the reason goes in the output.
     pub fn failed() -> Self {
-        RunResult { ok: false, exit: None, trace: String::new(), elapsed: None }
+        RunResult { ok: false, exit: None, trace: String::new(), mir: vec![], elapsed: None }
     }
 }
 

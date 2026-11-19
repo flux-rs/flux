@@ -7,8 +7,8 @@ import { curProgram, go, setHoverRow, setSelRow, toggleCollapsed, toggleFold, us
 import { buildCfg } from "../trace/cfg";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Section, type SecItem, type Sep } from "../trace/model";
 import { envBindings, matchClose, rcxFacts } from "../trace/text";
-import { GhostIcon } from "./icons";
-import { BindingView, commaList, localHoverHandlers, ptrHoverHandlers, Rich } from "./text";
+import { ChevronIcon, GhostIcon } from "./icons";
+import { BindingView, commaList, Local, localHoverHandlers, ptrHoverHandlers, Rich } from "./text";
 
 interface Props {
   fn: Fn;
@@ -69,7 +69,7 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
     return (
       <div className="sec" key={s.idx}>
         <div className={single ? "hd" : "hd click"} onClick={single ? undefined : () => toggleCollapsed(String(s.idx))}>
-          {!single && <span className="tw">{isCollapsed ? "▸" : "▾"}</span>}
+          {!single && <span className="tw"><ChevronIcon open={!isCollapsed} /></span>}
           <span className="bb">{s.bb}</span>
           {(s.visit > 1 || (single && cfg.nodes.get(s.bb)!.secs.length > 1)) && <span className="hint">visit {s.visit}</span>}
           {closable && (
@@ -85,8 +85,9 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
   };
 
   const solOpen = collapsed.includes("sol-open");
+  const localsOpen = collapsed.includes("locals-open");
   return (
-    <div id="view" ref={ref}
+    <div id="view" ref={ref} className={mode.name === "mir" ? "noenv" : ""}
       onMouseOver={e => {
         if (ptrhover) hover.onMouseOver(e);
         if (lochover) lhover.onMouseOver(e);
@@ -108,10 +109,28 @@ export function BlockView({ fn, mode, view, hideinert }: Props) {
           <span className="pill">{mode.name}</span>
         </div>
       )}
+      {fn.locals && fn.locals.length > 0 && mode.name === "mir" && (
+        <div className="sec">
+          <div className="hd click" onClick={() => toggleCollapsed("locals-open")}>
+            <span className="tw"><ChevronIcon open={localsOpen} /></span>
+            <span className="bb">locals</span>
+            <span className="meta">{fn.locals.length} locals</span>
+          </div>
+          {localsOpen && (
+            <div className="bd solution">
+              {fn.locals.map(l => (
+                <div key={l.local}>
+                  {l.mutable && "mut "}<Local local={l.local} />: <Rich text={l.ty} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {fn.solution && fn.solution.length > 0 && mode.name === "refine" && (
         <div className="sec">
           <div className="hd click" onClick={() => toggleCollapsed("sol-open")}>
-            <span className="tw">{solOpen ? "▾" : "▸"}</span>
+            <span className="tw"><ChevronIcon open={solOpen} /></span>
             <span className="bb">kvar solution</span>
             <span className="meta">{fn.solution.length} kvars · hover a kvar to see its solution</span>
           </div>
