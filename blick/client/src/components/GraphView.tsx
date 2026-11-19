@@ -7,7 +7,7 @@ import {
 } from "@xyflow/react";
 import { memo, useContext, useEffect, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
-import { curProgram, go, setGraphState, useStore } from "../store";
+import { curProgram, openBlocks, setGraphState, useStore } from "../store";
 import { buildCfg, type Cfg, type CfgNode, layoutCfg, type Positions } from "../trace/cfg";
 import { type Fn, type Item, isGhost, isInert, type Mode, type Sep } from "../trace/model";
 import { GhostIcon, MOD } from "./icons";
@@ -174,7 +174,7 @@ function Graph({ fn, mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKe
     const bbs = [...selected];
     if (!bbs.length) return;
     if (pos) bbs.sort((a, b) => pos.get(a)!.y - pos.get(b)!.y || pos.get(a)!.x - pos.get(b)!.x);
-    go({ kind: "block", bbs });
+    openBlocks(bbs);
   };
 
   // select every block the checker visited
@@ -195,7 +195,7 @@ function Graph({ fn, mode, hideinert, cfg, optsKey }: Props & { cfg: Cfg; optsKe
       edges={ready ? initial.edges : []}
       onNodesChange={onNodesChange}
       nodeTypes={nodeTypes}
-      onNodeDoubleClick={(_, n) => n.data.visited && go({ kind: "block", bbs: [n.id] })}
+      onNodeDoubleClick={(_, n) => n.data.visited && openBlocks([n.id])}
       onNodeDragStop={(_, __, moved) => {
         for (const n of moved) drag[n.id] = n.position;
         setGraphState(graphKey, g => ({ ...g, drag: { ...drag } }));

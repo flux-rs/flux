@@ -16,9 +16,12 @@ export interface ViewState {
   fnId: string | null;
   mode: string | null;
   kind: ViewKind;
-  /** the blocks open side by side in the block view */
-  bbs: string[];
+  /** the blocks open in the block view: columns side by side, each a stack of blocks; never an empty column */
+  cols: string[][];
 }
+
+/** Where a dragged block goes: a new column before column `at`, or into column `col` before its block `at`. */
+export type BlockDrop = { kind: "newcol"; at: number } | { kind: "into"; col: number; at: number };
 
 export interface Program {
   id: number;
@@ -96,7 +99,7 @@ interface State {
   hoverRow: string | null;
 }
 
-const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", bbs: [] });
+const emptyView = (): ViewState => ({ fnId: null, mode: null, kind: "graph", cols: [] });
 const emptyRun = (): Run => ({
   data: null, trace: "", mir: [], ranSource: null, ranFlags: null, status: "none", statusText: "", statusErr: false,
   noTrace: false, buildLog: [],
@@ -135,12 +138,18 @@ export const useStore = create<State>()(
       // options added since the state was saved get their defaults
       merge: (persisted, current) => {
         const p = persisted as Partial<State>;
-        const programs = p.programs?.map(q => ({ ...newProgram(q.id, []), ...q }));
+        const programs = p.programs?.map(q => ({ ...newProgram(q.id, []), ...q, view: migrateView(q.view) }));
         return { ...current, ...p, ui: { ...current.ui, ...p.ui }, ...(programs ? { programs } : {}) };
       },
     },
   ),
 );
+
+/** A view saved before the open blocks were columns: one column per block. */
+function migrateView(v: ViewState & { bbs?: string[] }): ViewState {
+  const { bbs, ...rest } = v;
+  return { ...rest, cols: rest.cols ?? (bbs ?? []).map(bb => [bb]) };
+}
 
 const set = useStore.setState;
 const get = useStore.getState;
@@ -161,8 +170,8 @@ export function resolveView(data: Trace | null, v: ViewState): { fn: Fn; mode: M
   if (!mode) return null;
   let view = v;
   if (v.kind === "block") {
-    const bbs = v.bbs.filter(bb => mode.sections.some(s => s.bb === bb));
-    view = bbs.length ? { ...v, bbs } : { ...v, kind: "graph", bbs: [] };
+    const cols = v.cols.map(col => col.filter(bb => mode.sections.some(s => s.bb === bb))).filter(col => col.length);
+    view = cols.length ? { ...v, cols } : { ...v, kind: "graph", cols: [] };
   }
   return { fn, mode, view: { ...view, fnId: fn.id, mode: mode.name } };
 }
@@ -244,8 +253,34 @@ export function go(patch: Partial<ViewState>) {
   set({ selRow: null });
 }
 
+/** Opens the blocks `bbs` in the block view, one column each. */
+export function openBlocks(bbs: string[]) {
+  go({ kind: "block", cols: bbs.map(bb => [bb]) });
+}
+
+/** The open blocks with `bb` closed; its column goes if it was the only block in it. */
+export function closeBlock(bb: string) {
+  const cols = curProgram(get()).view.cols.map(col => col.filter(b => b !== bb)).filter(col => col.length);
+  go({ cols });
+}
+
+/** The columns `cols` with `bb` moved to `drop` (positions in `cols` before the move). */
+export function movedCols(cols: string[][], bb: string, drop: BlockDrop): string[][] {
+  // `bb` is marked where it was and removed after the insert, so `drop`'s positions stay valid
+  const MARK = "\0";
+  const out = cols.map(col => col.map(b => (b === bb ? MARK : b)));
+  if (drop.kind === "newcol") out.splice(drop.at, 0, [bb]);
+  else out[drop.col].splice(drop.at, 0, bb);
+  return out.map(col => col.filter(b => b !== MARK)).filter(col => col.length);
+}
+
+/** Moves the open block `bb` to `drop`. Keeps the selected row, which moves with its block. */
+export function moveBlock(bb: string, drop: BlockDrop) {
+  updateProgram(get().active, p => ({ view: { ...p.view, cols: movedCols(p.view.cols, bb, drop) } }));
+}
+
 export function selectFn(fnId: string) {
-  go({ fnId, kind: "graph", bbs: [] });
+  go({ fnId, kind: "graph", cols: [] });
   updateProgram(get().active, () => ({ collapsed: [] }));
 }
 

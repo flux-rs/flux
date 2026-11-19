@@ -259,8 +259,16 @@ kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line-st
 .selbar .selcount { color: var(--muted); font-size: 13px; margin-right: 4px; }
 
 /* ---- block sections (block view: open blocks side by side; all-blocks view) ---- */
-.cols { display: grid; grid-template-columns: repeat(var(--ncols, 1), minmax(min(420px, 100%), 1fr)); gap: 12px; align-items: start; }
+.cols { position: relative; display: grid; grid-template-columns: repeat(var(--ncols, 1), minmax(min(320px, 100%), 1fr)); gap: 12px; align-items: start; }
 .col { min-width: 0; }
+/* an open block is moved by dragging its header */
+.cols .sec > .hd[draggable="true"] { cursor: grab; }
+.cols .sec > .hd[draggable="true"] button { cursor: pointer; }
+.cblk.dragging { opacity: .4; }
+/* where the dragged block would go: a new column (vertical) or into a column (horizontal) */
+.dropbar { position: absolute; z-index: 5; background: var(--accent); border-radius: 2px; pointer-events: none; }
+.dropbar.v { width: 3px; margin-left: -1.5px; }
+.dropbar.h { height: 3px; margin-top: -1.5px; }
 /* the visit tabs of an open block, in its header: compact, so the header keeps its height */
 .sec > .hd .tabs.visits { align-self: center; padding: 1px; font-family: var(--ui); }
 .sec > .hd .tabs.visits button { padding: 0 8px; font-size: 12px; line-height: 18px; }
