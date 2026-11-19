@@ -1,3 +1,4 @@
+#[flux::assume_parametric(T)]
 fn foo<T>(x: T) -> T {
     x
 }

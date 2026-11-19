@@ -8,7 +8,7 @@ pub fn never<T>(_: i32) -> T {
     loop {}
 }
 
-#[spec(fn(x:Option<T>[true]) -> T)]
+#[spec(fn[hrn pt: T -> bool](x:Option<T{v: pt(v)}>[true]) -> T{v: pt(v)})]
 pub fn my_unwrap<T>(x: Option<T>) -> T {
     match x {
         Option::Some(v) => v,
@@ -16,7 +16,7 @@ pub fn my_unwrap<T>(x: Option<T>) -> T {
     }
 }
 
-#[spec(fn(T) -> Option<T>[true])]
+#[spec(fn[hrn pt: T -> bool](T{v: pt(v)}) -> Option<T{v: pt(v)}>[true])]
 fn my_some<T>(x: T) -> Option<T> {
     Option::Some(x)
 }

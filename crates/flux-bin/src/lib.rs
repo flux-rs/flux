@@ -28,6 +28,8 @@ pub struct FluxMetadata {
     pub no_panic: Option<bool>,
     /// Enable uninterpreted casts
     pub allow_uninterpreted_cast: Option<bool>,
+    /// Assume generic arguments of called functions are parametric
+    pub allow_parametricity: Option<bool>,
     /// Whether to allow raw pointer dereferences
     pub allow_raw_deref: Option<RawDerefMode>,
     /// Lean mode
@@ -115,6 +117,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.allow_raw_deref {
             flags.push(format!("-Fallow-raw-deref={v}"));
+        }
+        if let Some(v) = self.allow_parametricity {
+            flags.push(format!("-Fallow-parametricity={v}"));
         }
         if let Some(only_check) = only_check {
             flags.push(format!("-Finclude={only_check}"));

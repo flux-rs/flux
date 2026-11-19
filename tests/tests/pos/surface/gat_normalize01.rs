@@ -4,6 +4,8 @@
 // which normalizes through `impl<T> Container for Wrapper<T>` to
 //     (&'r bool, i32[1])
 
+#![flux::opts(allow_parametricity)]
+
 use flux_attrs::*;
 
 pub trait Container {
