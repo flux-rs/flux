@@ -81,6 +81,7 @@ impl fmt::Debug for GhostStatement {
 pub(crate) struct GhostStatements {
     at_start: Vec<GhostStatement>,
     at_location: LocationMap,
+    at_return: LocationMap,
     at_edge: EdgeMap,
 }
 
@@ -97,6 +98,7 @@ impl GhostStatements {
             let mut stmts = Self {
                 at_start: Default::default(),
                 at_location: LocationMap::default(),
+                at_return: LocationMap::default(),
                 at_edge: EdgeMap::default(),
             };
 
@@ -157,6 +159,9 @@ impl GhostStatements {
             Point::BeforeLocation(location) => {
                 self.at_location.entry(location).or_default().extend(stmts);
             }
+            Point::AtReturn(location) => {
+                self.at_return.entry(location).or_default().extend(stmts);
+            }
             Point::Edge(from, to) => {
                 self.at_edge
                     .entry(from)
@@ -178,6 +183,7 @@ impl GhostStatements {
             Point::BeforeLocation(location) => {
                 self.at_location.get(&location).into_iter().flatten()
             }
+            Point::AtReturn(location) => self.at_return.get(&location).into_iter().flatten(),
             Point::Edge(from, to) => {
                 self.at_edge
                     .get(&from)
@@ -202,6 +208,9 @@ impl GhostStatements {
                         PassWhere::BeforeLocation(location) => {
                             for stmt in self.statements_at(Point::BeforeLocation(location)) {
                                 writeln!(w, "        {stmt:?};")?;
+                            }
+                            for stmt in self.statements_at(Point::AtReturn(location)) {
+                                writeln!(w, "        at_return: {stmt:?};")?;
                             }
                         }
                         PassWhere::AfterTerminator(bb) => {
@@ -235,6 +244,11 @@ pub(crate) enum Point {
     FunEntry,
     /// The point before a location in a basic block.
     BeforeLocation(Location),
+    /// The point at a `return` terminator *after* the returned value has been checked against the
+    /// declared output type but *before* checking the `ensures` clauses. Folding arguments here
+    /// rather than at [`Point::BeforeLocation`] gives the check of the returned value a chance to
+    /// convert a `ptr(mut, ℓ.f)` into a `&mut` first, which *blocks* `ℓ.f`.
+    AtReturn(Location),
     /// An edge between two basic blocks.
     Edge(BasicBlock, BasicBlock),
 }
