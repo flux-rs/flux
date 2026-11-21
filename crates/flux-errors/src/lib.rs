@@ -92,7 +92,7 @@ fn emitter(
     match sopts.error_format {
         config::ErrorOutputType::HumanReadable { kind, color_config } => {
             match kind {
-                HumanReadableErrorType { short, unicode } => {
+                HumanReadableErrorType { no_graphics, short, unicode } => {
                     let emitter = AnnotateSnippetEmitter::new(stderr_destination(color_config))
                         .sm(source_map)
                         .short_message(short)
@@ -106,7 +106,8 @@ fn emitter(
                                 .unstable_opts
                                 .ignore_directory_in_diagnostics_source_blocks
                                 .clone(),
-                        );
+                        )
+                        .no_graphics(no_graphics);
                     Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
                 }
             }
