@@ -26,7 +26,7 @@ use rustc_hir::{
 };
 use rustc_interface::interface::Compiler;
 use rustc_middle::{queries, ty::TyCtxt, util};
-use rustc_session::config::OutputType;
+use rustc_session::config::{JobsMode, OutputType};
 
 use crate::collector::SpecCollector;
 
@@ -36,6 +36,11 @@ pub struct FluxCallbacks;
 impl Callbacks for FluxCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
         assert!(config.override_queries.is_none());
+
+        // Nightly rustc runs the frontend on a thread pool by default (rust-lang/rust#162848),
+        // which would run `mir_borrowck` on worker threads. `mir_storage` keeps the bodies in
+        // thread-local storage, so keep the frontend on a single thread.
+        config.opts.jobs.frontend = JobsMode::Sequential;
 
         config.override_queries = Some(|_, local| {
             local.queries.mir_borrowck = mir_borrowck;
