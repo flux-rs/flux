@@ -154,12 +154,27 @@ jobs:
         run: cargo clippy
 
   deploy:
-    # Must match the glibc version on goto.ucsd.edu (glibc 2.35 / Ubuntu 22.04).
-    # Binaries compiled against a newer glibc will fail to run on the server.
-    runs-on: ubuntu-22.04
+    # Deploys the flux sysroot to the playground server. Configured through
+    # variables. DEPLOY_TARGET and DEPLOY_RUNNER are read by `if`/`runs-on`, which
+    # are evaluated before the environment is attached, so they must be
+    # repository variables; the rest may also be `playground` environment ones.
+    #   DEPLOY_TARGET       ssh destination as user@host; the job is skipped when unset
+    #   DEPLOY_KNOWN_HOSTS  pinned `ssh-keyscan [-p <port>] <host>` output, verified out of band
+    #   DEPLOY_PORT         (optional) ssh port, default 22
+    #   DEPLOY_RUNNER       (optional) runner image; its glibc must not be newer
+    #                       than the server's, or the binaries won't run there
+    # and the FLUX_DEPLOY_KEY secret, whose public key is restricted on the
+    # server to tools/flux-deploy.
+    runs-on: ${{ vars.DEPLOY_RUNNER || 'ubuntu-22.04' }}
     needs: [tests]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_TARGET != ''
     environment: playground
+    # Serialize deploys; never cancel one mid-way through the upload/swap.
+    concurrency:
+      group: playground-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET }}
     steps:
       - uses: actions/checkout@v4
 
@@ -174,6 +189,25 @@ jobs:
       - name: Copy flux binary into sysroot directory
         run: cp ~/.cargo/bin/flux ~/.flux/sysroot/flux
 
+      # The solvers ship inside the sysroot so the server runs exactly the
+      # versions flux was tested with; the playground service puts
+      # ~/.flux/sysroot/bin on its PATH.
+      - name: Install fixpoint
+        uses: ./.github/actions/install-fixpoint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Z3
+        uses: cda-tum/setup-z3@v1.6.6
+        with:
+          version: 4.15.3
+
+      - name: Copy fixpoint and z3 into sysroot bin directory
+        run: |
+          mkdir -p ~/.flux/sysroot/bin
+          cp "$(readlink -f "$(command -v fixpoint)")" ~/.flux/sysroot/bin/fixpoint
+          cp "$(readlink -f "$(command -v z3)")" ~/.flux/sysroot/bin/z3
+
       - name: Stamp build with commit timestamp and toolchain info
         run: |
           git log -1 --format='%ct' > ~/.flux/sysroot/version
@@ -185,20 +219,41 @@ jobs:
           echo $components > ~/.flux/sysroot/toolchain-components
 
       - name: Set up SSH key
+        env:
+          FLUX_DEPLOY_KEY: ${{ secrets.FLUX_DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
         run: |
+          for v in DEPLOY_KNOWN_HOSTS FLUX_DEPLOY_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::$v is not set" >&2
+              exit 1
+            fi
+          done
           mkdir -p ~/.ssh
-          echo "${{ secrets.FLUX_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "$FLUX_DEPLOY_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan goto.ucsd.edu >> ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          # Used by both ssh and rsync, so the target stays a plain user@host.
+          if [ -n "$DEPLOY_PORT" ]; then
+            if [[ ! "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
+              echo "::error::DEPLOY_PORT must be a number" >&2
+              exit 1
+            fi
+            printf 'Host %s\n  Port %s\n' "${DEPLOY_TARGET#*@}" "$DEPLOY_PORT" >> ~/.ssh/config
+            chmod 600 ~/.ssh/config
+          fi
 
-      - name: Rsync flux sysroot to per-commit staging directory on server
+      - name: Compute deploy ID
+        # Unique per run and per attempt, so re-runs never upload into the
+        # directory that is currently live on the server.
+        run: echo "DEPLOY_ID=$(git rev-parse HEAD)-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
+      - name: Rsync flux sysroot to per-run staging directory on server
         run: |
-          SHA=$(git rev-parse HEAD)
           # Destination is relative: rrsync (the forced command on the server)
-          # roots it under ~/.flux-staging, so this lands in ~/.flux-staging/$SHA.
-          rsync -az --delete ~/.flux/sysroot/ nlehmann@goto.ucsd.edu:$SHA/
+          # roots it under ~/.flux-staging, so this lands in ~/.flux-staging/sysroot/$DEPLOY_ID.
+          rsync -az --delete ~/.flux/sysroot/ "$DEPLOY_TARGET:sysroot/$DEPLOY_ID/"
 
       - name: Atomically swap sysroot on server
-        run: |
-          SHA=$(git rev-parse HEAD)
-          ssh nlehmann@goto.ucsd.edu "flux-deploy $SHA"
+        run: ssh "$DEPLOY_TARGET" "flux-deploy sysroot $DEPLOY_ID"
