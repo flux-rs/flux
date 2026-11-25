@@ -200,6 +200,33 @@ pub fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Resu
     Ok(())
 }
 
+/// Copies the directory `src` to `dst`, which must not exist. Symlinks are not followed.
+pub fn copy_dir(src: &Path, dst: &Path) -> anyhow::Result<()> {
+    eprintln!("$ cp -r {} {}", src.display(), dst.display());
+    copy_dir_inner(src, dst)
+        .map_err(|err| anyhow!("failed to copy `{}` to `{}`: {err}", src.display(), dst.display()))
+}
+
+fn copy_dir_inner(src: &Path, dst: &Path) -> io::Result<()> {
+    fs::create_dir(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let (src, dst) = (entry.path(), dst.join(entry.file_name()));
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            copy_dir_inner(&src, &dst)?;
+        } else if file_type.is_symlink() {
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(fs::read_link(&src)?, &dst)?;
+            #[cfg(not(unix))]
+            fs::copy(&src, &dst)?;
+        } else {
+            fs::copy(&src, &dst)?;
+        }
+    }
+    Ok(())
+}
+
 /// Removes the file or directory at `path`. A symlink is removed itself, not what it points to.
 pub fn remove_path(path: &Path) -> anyhow::Result<()> {
     match path.symlink_metadata() {

@@ -18,7 +18,7 @@ pub enum Cli {
         check_opts: CompileOpts,
 
         #[command(subcommand)]
-        command: Option<CargoFluxCommand>,
+        command: Option<FluxCommand>,
 
         /// Print version information
         #[arg(short = 'V', long, action = clap::ArgAction::SetTrue)]
@@ -28,6 +28,27 @@ pub enum Cli {
         #[arg(short, long, action = clap::ArgAction::Count)]
         verbose: u8,
     },
+}
+
+// Parsed once, so the size of the variants doesn't matter.
+#[allow(clippy::large_enum_variant)]
+#[derive(clap::Subcommand)]
+pub enum FluxCommand {
+    #[command(flatten)]
+    Cargo(CargoFluxCommand),
+    /// Manage the Flux installation
+    #[command(name = "self", subcommand)]
+    SelfCmd(SelfCommand),
+}
+
+#[derive(clap::Subcommand)]
+pub enum SelfCommand {
+    /// Install the Flux sysroot containing this `cargo-flux`, i.e., an extracted Flux release.
+    /// Used by the install script.
+    #[command(hide = true)]
+    Install,
+    /// Uninstall Flux
+    Uninstall,
 }
 
 #[derive(clap::Subcommand)]

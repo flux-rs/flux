@@ -8,8 +8,9 @@ use cargo_metadata::{Metadata, camino::Utf8Path};
 use clap::Parser as _;
 use flux_bin::{
     FluxMetadata,
-    cargo_flux_opts::{CargoFluxCommand, Cli},
+    cargo_flux_opts::{CargoFluxCommand, Cli, FluxCommand},
     config::FluxConfig,
+    self_cmd,
     utils::{
         EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, print_version_and_exit,
         read_sysroot_manifest,
@@ -26,7 +27,17 @@ fn main() {
         print_version_and_exit("cargo-flux", verbose > 0);
     }
 
-    let command = command.unwrap_or(CargoFluxCommand::Check(check_opts));
+    let command = match command {
+        Some(FluxCommand::Cargo(command)) => command,
+        Some(FluxCommand::SelfCmd(command)) => {
+            if let Err(e) = self_cmd::run(command) {
+                eprintln!("error: {e:#}");
+                exit(EXIT_ERR)
+            }
+            exit(0)
+        }
+        None => CargoFluxCommand::Check(check_opts),
+    };
 
     match run(command) {
         Ok(exit_code) => exit(exit_code),
