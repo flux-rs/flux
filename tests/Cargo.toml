@@ -9,7 +9,6 @@ doctest = false
 test = false
 
 [dependencies]
-flux-dev.workspace = true
 flux-sysroot.workspace = true
 
 [dev-dependencies]

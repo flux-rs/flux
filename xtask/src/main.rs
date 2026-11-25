@@ -15,10 +15,11 @@ use cargo_metadata::{
     camino::{Utf8Path, Utf8PathBuf},
     Artifact, Message, TargetKind,
 };
-use flux_dev::Suite;
 use flux_sysroot::{
-    bin_dir, bin_path, default_flux_sysroot_dir, lib_dir, parse_toolchain_file, FluxVersion,
-    SysrootCrate, SysrootManifest, FLUX_SYSROOT, SYSROOT_MANIFEST,
+    bin_dir, bin_path, default_flux_sysroot_dir,
+    dev::{default_flags, Suite},
+    lib_dir, parse_toolchain_file, FluxVersion, SysrootCrate, SysrootManifest, FLUX_SYSROOT,
+    SYSROOT_MANIFEST,
 };
 
 xflags::xflags! {
@@ -261,8 +262,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         }
 
         // Build rustc flags
-        let mut rustc_flags =
-            flux_dev::default_flags(&config.dst, SysrootManifest::extern_args(&config.dst));
+        let mut rustc_flags = default_flags(&config.dst, SysrootManifest::extern_args(&config.dst));
         rustc_flags.push("-Flean=emit".to_string());
         rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
 
@@ -355,8 +355,7 @@ fn run_inner(
 
     let flux_driver = install_sysroot(&config)?;
 
-    let mut rustc_flags =
-        flux_dev::default_flags(&config.dst, SysrootManifest::extern_args(&config.dst));
+    let mut rustc_flags = default_flags(&config.dst, SysrootManifest::extern_args(&config.dst));
     rustc_flags.extend(flags);
 
     Command::new(flux_driver)

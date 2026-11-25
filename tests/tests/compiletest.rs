@@ -4,8 +4,10 @@
 use std::{env, path::PathBuf, str::FromStr};
 
 use compiletest_rs::{Config, common::Mode};
-use flux_dev::{Suite, default_flags};
-use flux_sysroot::SysrootManifest;
+use flux_sysroot::{
+    SysrootManifest,
+    dev::{Suite, default_flags},
+};
 use itertools::Itertools;
 
 #[derive(Debug)]
