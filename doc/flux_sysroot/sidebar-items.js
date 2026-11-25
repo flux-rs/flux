@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["FLUX_HOME","FLUX_SYSROOT","SYSROOT_MANIFEST"],"fn":["default_flux_sysroot_dir","flux_home_dir","flux_sysroot_dir"],"struct":["SysrootCrate","SysrootManifest"]};
+window.SIDEBAR_ITEMS = {"constant":["FLUX_HOME","FLUX_SYSROOT","INSTALL_GUIDE_URL","SYSROOT_MANIFEST"],"fn":["bin_dir","bin_path","default_flux_sysroot_dir","flux_home_dir","flux_sysroot_dir","lib_dir","parse_toolchain_file"],"mod":["dev"],"struct":["FluxVersion","InvalidSysroot","SysrootCrate","SysrootManifest","ToolchainFile","ToolchainSpec"]};

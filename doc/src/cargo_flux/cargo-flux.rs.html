@@ -11,8 +11,8 @@
 <a href=#11 id=11 data-nosnippet>11</a>    cargo_flux_opts::{CargoFluxCommand, Cli},
 <a href=#12 id=12 data-nosnippet>12</a>    config::FluxConfig,
 <a href=#13 id=13 data-nosnippet>13</a>    utils::{
-<a href=#14 id=14 data-nosnippet>14</a>        EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
-<a href=#15 id=15 data-nosnippet>15</a>        print_version_and_exit,
+<a href=#14 id=14 data-nosnippet>14</a>        EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, print_version_and_exit,
+<a href=#15 id=15 data-nosnippet>15</a>        read_sysroot_manifest,
 <a href=#16 id=16 data-nosnippet>16</a>    },
 <a href=#17 id=17 data-nosnippet>17</a>};
 <a href=#18 id=18 data-nosnippet>18</a><span class="kw">use </span>itertools::Itertools;
@@ -38,11 +38,11 @@
 <a href=#38 id=38 data-nosnippet>38</a>}
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a><span class="kw">fn </span>run(cargo_flux_cmd: CargoFluxCommand) -&gt; anyhow::Result&lt;i32&gt; {
-<a href=#41 id=41 data-nosnippet>41</a>    <span class="kw">let </span>toolchain = get_rust_toolchain()<span class="question-mark">?</span>;
-<a href=#42 id=42 data-nosnippet>42</a>    <span class="kw">let </span>cargo_path = get_binary_path(<span class="kw-2">&amp;</span>toolchain, <span class="string">"cargo"</span>)<span class="question-mark">?</span>;
-<a href=#43 id=43 data-nosnippet>43</a>
-<a href=#44 id=44 data-nosnippet>44</a>    <span class="kw">let </span>metadata = cargo_flux_cmd.metadata().cargo_path(<span class="kw-2">&amp;</span>cargo_path).exec()<span class="question-mark">?</span>;
-<a href=#45 id=45 data-nosnippet>45</a>    <span class="kw">let </span>sysroot = flux_sysroot_dir();
+<a href=#41 id=41 data-nosnippet>41</a>    <span class="kw">let </span>sysroot = flux_sysroot_dir();
+<a href=#42 id=42 data-nosnippet>42</a>    <span class="kw">let </span>toolchain = read_sysroot_manifest(<span class="kw-2">&amp;</span>sysroot).toolchain;
+<a href=#43 id=43 data-nosnippet>43</a>    <span class="kw">let </span>cargo_path = get_binary_path(<span class="kw-2">&amp;</span>toolchain, <span class="string">"cargo"</span>)<span class="question-mark">?</span>;
+<a href=#44 id=44 data-nosnippet>44</a>
+<a href=#45 id=45 data-nosnippet>45</a>    <span class="kw">let </span>metadata = cargo_flux_cmd.metadata().cargo_path(<span class="kw-2">&amp;</span>cargo_path).exec()<span class="question-mark">?</span>;
 <a href=#46 id=46 data-nosnippet>46</a>    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>sysroot)<span class="question-mark">?</span>;
 <a href=#47 id=47 data-nosnippet>47</a>    <span class="kw">let </span>config_file = write_cargo_config(metadata, <span class="kw-2">&amp;</span>sysroot, <span class="kw-2">&amp;</span>cargo_flux_cmd)<span class="question-mark">?</span>;
 <a href=#48 id=48 data-nosnippet>48</a>

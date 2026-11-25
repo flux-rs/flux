@@ -192,19 +192,20 @@ If you are using <code>rustup</code>, no special action is needed as it should i
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo xtask install
 </code></pre>
-<p>This will install two binaries <code>flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
-respectively to run Flux on either a single file or on a project using cargo. The installation process will
-also copy the Flux sysroot (the driver and precompiled libraries) to <code>$HOME/.flux/sysroot</code>.</p>
+<p>This will install the Flux sysroot (the binaries and precompiled libraries) to <code>$HOME/.flux/sysroot</code> and
+link two binaries, <code>flux</code> and <code>cargo-flux</code>, from your cargo home (<code>$HOME/.cargo/bin</code>). These two binaries
+should be used respectively to run Flux on either a single file or on a project using cargo.</p>
 <h2 id="flux-home"><a class="header" href="#flux-home">Flux Home</a></h2>
 <p>The Flux home is the directory <code>$HOME/.flux</code>. Its location can be changed by setting the
 <code>FLUX_HOME</code> environment variable. It contains:</p>
 <ul>
 <li><code>config.toml</code> — Your personal <a href="../reference/config.html">configuration</a>, which applies to every
 invocation of <code>cargo flux</code>. It is never modified by Flux.</li>
-<li><code>sysroot/</code> — The Flux sysroot, i.e., <code>flux-driver</code> and the precompiled Flux libraries. It is
-managed by <code>cargo xtask install</code> and <code>cargo xtask uninstall</code>, which replace or remove the whole
-directory, so it is safe to delete. Use the <code>FLUX_SYSROOT</code> environment variable to use a sysroot
-in a different location.</li>
+<li><code>sysroot/</code> — The Flux sysroot. It contains the binaries (<code>bin/flux</code>, <code>bin/cargo-flux</code> and
+<code>bin/flux-driver</code>), the precompiled Flux libraries (<code>lib/</code>), and a manifest (<code>sysroot.toml</code>)
+recording the Flux version and the Rust toolchain it was built with. It is managed by
+<code>cargo xtask install</code> and <code>cargo xtask uninstall</code>, which replace or remove the whole directory.
+Use the <code>FLUX_SYSROOT</code> environment variable to use a sysroot in a different location.</li>
 </ul>
 <h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
 <p>The most common way to use Flux is to run it on a Cargo package.

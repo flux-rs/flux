@@ -4,36 +4,39 @@
 <a href=#4 id=4 data-nosnippet>4</a>
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>anyhow::Result;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>flux_bin::utils::{
-<a href=#7 id=7 data-nosnippet>7</a>    LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot,
-<a href=#8 id=8 data-nosnippet>8</a>    get_rust_toolchain, prepend_path_to_env_var, print_version_and_exit,
+<a href=#7 id=7 data-nosnippet>7</a>    LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot, lib_dir,
+<a href=#8 id=8 data-nosnippet>8</a>    prepend_path_to_env_var, print_version_and_exit, read_sysroot_manifest,
 <a href=#9 id=9 data-nosnippet>9</a>};
 <a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>flux_sysroot::SysrootManifest;
 <a href=#11 id=11 data-nosnippet>11</a>
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
-<a href=#13 id=13 data-nosnippet>13</a>    <span class="kw">if </span>env::args().any(|arg| arg == <span class="string">"--version" </span>|| arg == <span class="string">"-V"</span>) {
-<a href=#14 id=14 data-nosnippet>14</a>        <span class="kw">let </span>verbose = env::args().any(|arg| arg == <span class="string">"--verbose"</span>);
-<a href=#15 id=15 data-nosnippet>15</a>        print_version_and_exit(<span class="string">"flux"</span>, verbose);
-<a href=#16 id=16 data-nosnippet>16</a>    }
-<a href=#17 id=17 data-nosnippet>17</a>
-<a href=#18 id=18 data-nosnippet>18</a>    <span class="kw">let </span>flux_sysroot = flux_sysroot_dir();
-<a href=#19 id=19 data-nosnippet>19</a>    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>flux_sysroot)<span class="question-mark">?</span>;
-<a href=#20 id=20 data-nosnippet>20</a>    <span class="kw">let </span>rust_sysroot = get_rust_sysroot(<span class="kw-2">&amp;</span>get_rust_toolchain()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
-<a href=#21 id=21 data-nosnippet>21</a>    <span class="kw">let </span>ld_library_path = get_rust_lib_path(<span class="kw-2">&amp;</span>rust_sysroot);
-<a href=#22 id=22 data-nosnippet>22</a>    <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
-<a href=#23 id=23 data-nosnippet>23</a>
-<a href=#24 id=24 data-nosnippet>24</a>    Command::new(flux_driver_path)
-<a href=#25 id=25 data-nosnippet>25</a>        <span class="comment">// Skip the invocation of `flux` itself
-<a href=#26 id=26 data-nosnippet>26</a>        </span>.args(env::args().skip(<span class="number">1</span>))
-<a href=#27 id=27 data-nosnippet>27</a>        <span class="comment">// Transitive deps ignore `--extern`, so they still need a search path.
-<a href=#28 id=28 data-nosnippet>28</a>        </span>.arg(<span class="string">"-L"</span>)
-<a href=#29 id=29 data-nosnippet>29</a>        .arg(<span class="kw-2">&amp;</span>flux_sysroot)
-<a href=#30 id=30 data-nosnippet>30</a>        .arg(<span class="macro">format!</span>(<span class="string">"-Fsysroot={}"</span>, flux_sysroot.display()))
-<a href=#31 id=31 data-nosnippet>31</a>        .args(SysrootManifest::extern_args(<span class="kw-2">&amp;</span>flux_sysroot))
-<a href=#32 id=32 data-nosnippet>32</a>        .arg(<span class="string">"-Fverify=on"</span>)
-<a href=#33 id=33 data-nosnippet>33</a>        .env(LIB_PATH, extended_lib_path)
-<a href=#34 id=34 data-nosnippet>34</a>        .status()<span class="question-mark">?
-<a href=#35 id=35 data-nosnippet>35</a>        </span>.exit_ok()<span class="question-mark">?</span>;
-<a href=#36 id=36 data-nosnippet>36</a>
-<a href=#37 id=37 data-nosnippet>37</a>    <span class="prelude-val">Ok</span>(())
-<a href=#38 id=38 data-nosnippet>38</a>}
+<a href=#13 id=13 data-nosnippet>13</a>    <span class="comment">// Handle the version flags here, otherwise rustc would print its own version.
+<a href=#14 id=14 data-nosnippet>14</a>    </span><span class="kw">if </span>env::args().any(|arg| <span class="macro">matches!</span>(arg.as_str(), <span class="string">"--version" </span>| <span class="string">"-V" </span>| <span class="string">"-vV" </span>| <span class="string">"-Vv"</span>)) {
+<a href=#15 id=15 data-nosnippet>15</a>        <span class="kw">let </span>verbose =
+<a href=#16 id=16 data-nosnippet>16</a>            env::args().any(|arg| <span class="macro">matches!</span>(arg.as_str(), <span class="string">"--verbose" </span>| <span class="string">"-v" </span>| <span class="string">"-vV" </span>| <span class="string">"-Vv"</span>));
+<a href=#17 id=17 data-nosnippet>17</a>        print_version_and_exit(<span class="string">"flux"</span>, verbose);
+<a href=#18 id=18 data-nosnippet>18</a>    }
+<a href=#19 id=19 data-nosnippet>19</a>
+<a href=#20 id=20 data-nosnippet>20</a>    <span class="kw">let </span>flux_sysroot = flux_sysroot_dir();
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="kw">let </span>manifest = read_sysroot_manifest(<span class="kw-2">&amp;</span>flux_sysroot);
+<a href=#22 id=22 data-nosnippet>22</a>    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>flux_sysroot)<span class="question-mark">?</span>;
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="kw">let </span>rust_sysroot = get_rust_sysroot(<span class="kw-2">&amp;</span>manifest.toolchain)<span class="question-mark">?</span>;
+<a href=#24 id=24 data-nosnippet>24</a>    <span class="kw">let </span>ld_library_path = get_rust_lib_path(<span class="kw-2">&amp;</span>rust_sysroot);
+<a href=#25 id=25 data-nosnippet>25</a>    <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
+<a href=#26 id=26 data-nosnippet>26</a>
+<a href=#27 id=27 data-nosnippet>27</a>    Command::new(flux_driver_path)
+<a href=#28 id=28 data-nosnippet>28</a>        <span class="comment">// Skip the invocation of `flux` itself
+<a href=#29 id=29 data-nosnippet>29</a>        </span>.args(env::args().skip(<span class="number">1</span>))
+<a href=#30 id=30 data-nosnippet>30</a>        <span class="comment">// Transitive deps ignore `--extern`, so they still need a search path.
+<a href=#31 id=31 data-nosnippet>31</a>        </span>.arg(<span class="string">"-L"</span>)
+<a href=#32 id=32 data-nosnippet>32</a>        .arg(lib_dir(<span class="kw-2">&amp;</span>flux_sysroot))
+<a href=#33 id=33 data-nosnippet>33</a>        .arg(<span class="macro">format!</span>(<span class="string">"-Fsysroot={}"</span>, flux_sysroot.display()))
+<a href=#34 id=34 data-nosnippet>34</a>        .args(SysrootManifest::extern_args(<span class="kw-2">&amp;</span>flux_sysroot))
+<a href=#35 id=35 data-nosnippet>35</a>        .arg(<span class="string">"-Fverify=on"</span>)
+<a href=#36 id=36 data-nosnippet>36</a>        .env(LIB_PATH, extended_lib_path)
+<a href=#37 id=37 data-nosnippet>37</a>        .status()<span class="question-mark">?
+<a href=#38 id=38 data-nosnippet>38</a>        </span>.exit_ok()<span class="question-mark">?</span>;
+<a href=#39 id=39 data-nosnippet>39</a>
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="prelude-val">Ok</span>(())
+<a href=#41 id=41 data-nosnippet>41</a>}
 </code></pre></div></section></main></body></html>
