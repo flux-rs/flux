@@ -872,7 +872,9 @@ dependencies = [
 name = "flux-sysroot"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "home",
+ "rustix",
  "serde",
  "toml",
 ]
@@ -2718,7 +2720,6 @@ dependencies = [
  "flate2",
  "flux-sysroot",
  "home",
- "rustix",
  "serde",
  "tar",
  "toml",

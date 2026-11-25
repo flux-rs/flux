@@ -7,8 +7,10 @@ use std::{
 };
 
 use anyhow::anyhow;
-
-use crate::{remove_path, CommandExt};
+use flux_sysroot::{
+    bin_dir, bin_path,
+    install::{self, download, remove_path, BundledSolver},
+};
 
 /// Whether to bundle prebuilt solvers into the sysroot.
 #[derive(Clone, Copy)]
@@ -25,20 +27,14 @@ pub(crate) enum BundleSolvers {
 
 /// A solver downloaded into the sysroot by `cargo x install --bundle-solvers`.
 struct Solver {
-    name: &'static str,
+    bundled: BundledSolver,
     /// URL of the release archive containing the solver for the host, if there is one.
     archive_url: fn() -> Option<String>,
-    /// Argument that makes the solver print its version, used to check it runs on the host.
-    version_arg: &'static str,
 }
 
-const FIXPOINT: Solver = Solver {
-    name: "fixpoint",
-    archive_url: fixpoint_archive_url,
-    version_arg: "--numeric-version",
-};
+const FIXPOINT: Solver = Solver { bundled: install::FIXPOINT, archive_url: fixpoint_archive_url };
 
-const Z3: Solver = Solver { name: "z3", archive_url: z3_archive_url, version_arg: "--version" };
+const Z3: Solver = Solver { bundled: install::Z3, archive_url: z3_archive_url };
 
 fn fixpoint_archive_url() -> Option<String> {
     let asset = match (env::consts::OS, env::consts::ARCH) {
@@ -68,12 +64,13 @@ fn z3_archive_url() -> Option<String> {
     ))
 }
 
-/// Downloads fixpoint and z3 into `bin`. Flux looks up the solvers that aren't bundled in `PATH`.
+/// Downloads fixpoint and z3 into `sysroot`. Flux looks up the solvers that aren't bundled in
+/// `PATH`.
 ///
 /// z3 is only bundled together with a fixpoint that supports `--solver-path`. Otherwise, Flux would
 /// pass the bundled z3 to a fixpoint that can't take it.
-pub(crate) fn bundle(bin: &Path, required: bool) -> anyhow::Result<()> {
-    let Some(fixpoint) = download_solver(&FIXPOINT, bin, required)? else {
+pub(crate) fn bundle(sysroot: &Path, required: bool) -> anyhow::Result<()> {
+    let Some(fixpoint) = download_solver(&FIXPOINT, sysroot, required)? else {
         return skip(required, "not bundling `z3` without `fixpoint`");
     };
     if !supports_solver_path(&fixpoint) {
@@ -82,7 +79,7 @@ pub(crate) fn bundle(bin: &Path, required: bool) -> anyhow::Result<()> {
             "not bundling `z3` because the prebuilt `fixpoint` doesn't support `--solver-path`",
         );
     }
-    download_solver(&Z3, bin, required)?;
+    download_solver(&Z3, sysroot, required)?;
     Ok(())
 }
 
@@ -95,34 +92,29 @@ fn skip(required: bool, reason: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Downloads `solver` into `bin` and returns its path. Returns `None`, or an error if `required`,
-/// if there is no prebuilt binary for the host or if it doesn't run on it.
-fn download_solver(solver: &Solver, bin: &Path, required: bool) -> anyhow::Result<Option<PathBuf>> {
+/// Downloads `solver` into `sysroot` and returns its path. Returns `None`, or an error if
+/// `required`, if there is no prebuilt binary for the host or if it doesn't run on it.
+fn download_solver(
+    solver: &Solver,
+    sysroot: &Path,
+    required: bool,
+) -> anyhow::Result<Option<PathBuf>> {
+    let name = solver.bundled.name;
     let Some(url) = (solver.archive_url)() else {
-        let reason = format!(
-            "there is no prebuilt `{}` for {}-{}",
-            solver.name,
-            env::consts::ARCH,
-            env::consts::OS,
-        );
+        let reason =
+            format!("there is no prebuilt `{name}` for {}-{}", env::consts::ARCH, env::consts::OS);
         skip(required, &reason)?;
         return Ok(None);
     };
-    let exe = bin.join(format!("{}{}", solver.name, env::consts::EXE_SUFFIX));
-    let archive = bin.join(url.rsplit('/').next().unwrap_or(solver.name));
+    let exe = bin_path(sysroot, name);
+    let archive = bin_dir(sysroot).join(url.rsplit('/').next().unwrap_or(name));
     download(&url, &archive)?;
     extract_executable(&archive, &exe)?;
     remove_path(&archive)?;
 
-    let runs = Command::new(&exe)
-        .arg(solver.version_arg)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success());
-    if !runs {
+    if !solver.bundled.runs(sysroot) {
         remove_path(&exe)?;
-        skip(required, &format!("the prebuilt `{}` doesn't run on this machine", solver.name))?;
+        skip(required, &format!("the prebuilt `{name}` doesn't run on this machine"))?;
         return Ok(None);
     }
     Ok(Some(exe))
@@ -135,15 +127,6 @@ fn supports_solver_path(fixpoint: &Path) -> bool {
         .stderr(Stdio::null())
         .output()
         .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).contains("--solver-path"))
-}
-
-fn download(url: &str, dst: &Path) -> anyhow::Result<()> {
-    Command::new("curl")
-        .args(["--proto", "=https", "--tlsv1.2", "-fsSL", "--retry", "3", "-o"])
-        .arg(dst)
-        .arg(url)
-        .run()
-        .map_err(|err| anyhow!("failed to download `{url}` (this requires `curl`): {err}"))
 }
 
 /// Extracts the file named like `exe` from the `.zip` or `.tar.gz` `archive` into `exe`.
