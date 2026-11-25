@@ -2,30 +2,26 @@
 
 You can install and then run Flux either on a single file or on an entire crate.
 
-## Quick Install (Linux / macOS)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/flux-rs/flux/main/install.sh | bash
-```
-
 ## Requirements
 
 - [rustup](https://rustup.rs/)
 
   Rustup is required because Flux needs access to the source code of the Rust compiler, which we grab from rustup.
 
-- [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint)
+- [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint) and
+  [z3](https://github.com/Z3Prover/z3) 4.15 or later
 
-  Nightly binary builds are avilable on [GitHub Releases](https://github.com/ucsd-progsys/liquid-fixpoint/releases/tag/nightly). If there is no binary available
-  for your platform, you will need to [build it from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install).
+  The [installation step](#install) downloads both for you on the platforms with prebuilt binaries:
+  x86_64 Linux, aarch64 macOS, and x86_64 Windows.
 
-- [z3](https://github.com/Z3Prover/z3) 4.15 or later
+  On other platforms, install them yourself:
+  [build liquid-fixpoint from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install)
+  and download z3 from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). Make sure that
+  the `fixpoint` and `z3` binaries are in your `$PATH`.
 
-  You can download a binary for your platform from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). We recommend downloading the latest version, but older version should also work.
-
-**Note:**
-Make sure that the `liquid-fixpoint` and `z3` binaries are in your `$PATH`, or point Flux to them
-with the `-Ffixpoint=<path>` and `-Fz3=<path>` [flags](#flux-flags) (and `-Fcvc5=<path>` for cvc5).
+  To use specific builds instead, point Flux to them with the `-Ffixpoint=<path>`, `-Fz3=<path>`,
+  and `-Fcvc5=<path>` [flags](#flux-flags), which take precedence over both the downloaded solvers
+  and your `$PATH`.
 
 ## Install
 
@@ -45,12 +41,16 @@ If you are using `rustup`, no special action is needed as it should install the 
 Next, run the following to build and install `flux` binaries
 
 ```bash
-cargo xtask install
+cargo xtask install --bundle-solvers
 ```
 
 This will install the Flux sysroot (the binaries and precompiled libraries) to `$HOME/.flux/sysroot` and
 link two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`). These two binaries
 should be used respectively to run Flux on either a single file or on a project using cargo.
+
+With `--bundle-solvers`, the installation also downloads liquid-fixpoint and z3 into the sysroot if
+there are prebuilt binaries for your platform. Flux looks up any solver that isn't downloaded in your
+`$PATH`.
 
 ## Flux Home
 
