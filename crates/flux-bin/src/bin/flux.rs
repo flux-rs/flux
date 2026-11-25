@@ -10,8 +10,10 @@ use flux_bin::utils::{
 use flux_sysroot::SysrootManifest;
 
 fn main() -> Result<()> {
-    if env::args().any(|arg| arg == "--version" || arg == "-V") {
-        let verbose = env::args().any(|arg| arg == "--verbose");
+    // Handle the version flags here, otherwise rustc would print its own version.
+    if env::args().any(|arg| matches!(arg.as_str(), "--version" | "-V" | "-vV" | "-Vv")) {
+        let verbose =
+            env::args().any(|arg| matches!(arg.as_str(), "--verbose" | "-v" | "-vV" | "-Vv"));
         print_version_and_exit("flux", verbose);
     }
 
