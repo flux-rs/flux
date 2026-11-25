@@ -13,7 +13,7 @@ fn assert(b: bool) {
 }
 ```
 
-[Online demo](https://flux.goto.ucsd.edu/index.html#?demo=vectors.rs)
+[Online demo](https://flux.dcc.uchile.cl/index.html#?demo=vectors.rs)
 
 While `rustc` has a keen eye for spotting nasty bugs at
 compile time, it is not omniscient. We've all groaned in

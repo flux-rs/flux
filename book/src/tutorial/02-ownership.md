@@ -6,7 +6,7 @@ extern crate flux_rs;
 use flux_rs::attrs::*;
 ```
 
-[Online demo](https://flux.goto.ucsd.edu/?example=ownership.rs)
+[Online demo](https://flux.dcc.uchile.cl/?example=ownership.rs)
 
 [Previously](./01-introducing-flux.md) we saw how to refine basic Rust
 types like `i32` and `bool` with _indices_ and _constraints_ to

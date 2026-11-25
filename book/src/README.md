@@ -24,7 +24,7 @@ logical assertions describing additional correctness requirements
 that are checked during compilation, thereby eliminating various
 classes of run-time problems.
 
-You can try it on the [**online playground**](https://flux.goto.ucsd.edu/).
+You can try it on the [**online playground**](https://flux.dcc.uchile.cl/).
 
 Better still, read the [**interactive tutorial**](./tutorial/01-refinements.md),
 to learn how you can use Flux on your Rust code.
