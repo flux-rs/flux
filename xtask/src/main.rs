@@ -1,5 +1,7 @@
 #![feature(variant_count)]
 
+mod solvers;
+
 use std::{
     collections::BTreeMap,
     env,
@@ -63,6 +65,8 @@ xflags::xflags! {
             optional --profile profile: Profile
             /// Do not install Flux libs or extern specs
             optional --no-extern-specs
+            /// Download prebuilt `fixpoint` and `z3` into the sysroot, if there are any for this platform
+            optional --bundle-solvers
         }
         /// Uninstall Flux binaries and libraries
         cmd uninstall { }
@@ -127,6 +131,9 @@ fn main() -> anyhow::Result<()> {
         // Inherited by every cargo we run, including the one `cargo-flux` runs to build the libraries.
         // SAFETY: xtask is single-threaded, so nothing reads the environment concurrently.
         unsafe { env::set_var("CARGO_NET_OFFLINE", "true") };
+        if matches!(&cmd.subcommand, XtaskCmd::Install(args) if args.bundle_solvers) {
+            return Err(anyhow!("`--bundle-solvers` needs to download the solvers, so it can't be used with `--offline`"));
+        }
     }
 
     match cmd.subcommand {
@@ -141,6 +148,7 @@ fn main() -> anyhow::Result<()> {
                 rust_fixpoint: cmd.rust_fixpoint,
                 dst: local_sysroot_dir()?,
                 build_libs: BuildLibs { force: true, libs: FluxLib::ALL },
+                bundle_solvers: false,
             };
             install_sysroot(&config)?;
             Ok(())
@@ -185,6 +193,7 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
             rust_fixpoint,
             dst: dst.clone(),
             build_libs: BuildLibs { force: false, libs },
+            bundle_solvers: false,
         };
         let flux_driver = install_sysroot(&config)?;
         run_tests(&flux_driver, &dst, suite.name(), args.filter.as_deref(), args.fixpoint_timeout)?;
@@ -200,6 +209,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         rust_fixpoint,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
+        bundle_solvers: false,
     };
     let flux_driver = install_sysroot(&config)?;
 
@@ -353,6 +363,7 @@ fn run_inner(
         rust_fixpoint,
         dst: local_sysroot_dir()?,
         build_libs,
+        bundle_solvers: false,
     };
 
     let flux_driver = install_sysroot(&config)?;
@@ -374,6 +385,7 @@ fn install(args: &Install, rust_fixpoint: bool) -> anyhow::Result<()> {
         rust_fixpoint,
         dst: default_flux_sysroot_dir(),
         build_libs: BuildLibs { force: false, libs },
+        bundle_solvers: args.bundle_solvers,
     };
     install_sysroot(&config)?;
     link_binaries(&config.dst)
@@ -484,6 +496,8 @@ struct SysrootConfig {
     /// Destination path for sysroot artifacts
     dst: PathBuf,
     build_libs: BuildLibs,
+    /// Whether to download prebuilt solvers into the sysroot
+    bundle_solvers: bool,
 }
 
 struct BuildLibs {
@@ -585,6 +599,10 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
         .run_with_cargo_metadata()?;
     manifest.crates = copy_artifacts(&artifacts, &lib_dir(&staging))?;
     write_sysroot_toml(&manifest, &staging)?;
+
+    if config.bundle_solvers {
+        solvers::bundle(&bin_dir(&staging))?;
+    }
 
     replace_dir(&staging, &config.dst)?;
     Ok(flux_driver)
