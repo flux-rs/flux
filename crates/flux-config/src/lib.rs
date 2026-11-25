@@ -128,6 +128,35 @@ fn solver() -> SmtSolver {
     FLAGS.solver
 }
 
+/// The `z3` executable, see [`Flags::z3`](flags::Flags::z3). `None` if it should be looked up in
+/// `PATH`.
+pub fn z3_path() -> Option<PathBuf> {
+    executable(FLAGS.z3.as_deref(), "z3")
+}
+
+/// The `cvc5` executable, see [`Flags::cvc5`](flags::Flags::cvc5). `None` if it should be looked
+/// up in `PATH`.
+pub fn cvc5_path() -> Option<PathBuf> {
+    executable(FLAGS.cvc5.as_deref(), "cvc5")
+}
+
+/// The `fixpoint` executable, see [`Flags::fixpoint`](flags::Flags::fixpoint). `None` if it should
+/// be looked up in `PATH`.
+pub fn fixpoint_path() -> Option<PathBuf> {
+    executable(FLAGS.fixpoint.as_deref(), "fixpoint")
+}
+
+/// Returns `path` if set, and otherwise `name` in the sysroot's `bin` directory if it exists there.
+fn executable(path: Option<&Path>, name: &str) -> Option<PathBuf> {
+    if let Some(path) = path {
+        return Some(path.to_path_buf());
+    }
+    let path = sysroot()?
+        .join("bin")
+        .join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+    path.is_file().then_some(path)
+}
+
 pub fn catch_bugs() -> bool {
     FLAGS.catch_bugs
 }

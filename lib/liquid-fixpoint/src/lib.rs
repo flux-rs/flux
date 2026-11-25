@@ -38,6 +38,7 @@ use std::{
     fmt::{self, Debug},
     hash::{Hash, Hasher},
     io,
+    path::Path,
     str::FromStr,
     time::Duration,
 };
@@ -376,11 +377,14 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
-    /// Runs the task. The timeout is ignored by the rust implementation.
+    /// Runs the task. The timeout and executables are ignored by the rust implementation, which
+    /// uses z3 as a library.
     #[cfg(feature = "rust-fixpoint")]
     pub fn run(
         &self,
         _timeout: Option<Duration>,
+        _fixpoint: Option<&Path>,
+        _solver: Option<&Path>,
     ) -> Result<VerificationResult<T::Tag>, FixpointError> {
         let mut cstr_with_env = ConstraintWithEnv::new(
             self.data_decls.clone(),
@@ -397,14 +401,22 @@ impl<T: Types> Task<T> {
         })
     }
 
-    /// Runs the task by calling the fixpoint binary. If `timeout` is given and fixpoint doesn't
-    /// finish in time, the process is killed and [`FixpointError::Timeout`] is returned.
+    /// Runs the task by calling the `fixpoint` executable, which runs the `solver` executable for
+    /// [`Task::solver`]. Either is looked up in `PATH` if not given. If `timeout` is given and
+    /// fixpoint doesn't finish in time, the process is killed and [`FixpointError::Timeout`] is
+    /// returned.
     #[cfg(not(feature = "rust-fixpoint"))]
     pub fn run(
         &self,
         timeout: Option<Duration>,
+        fixpoint: Option<&Path>,
+        solver: Option<&Path>,
     ) -> Result<VerificationResult<T::Tag>, FixpointError> {
-        let mut child = Command::new("fixpoint")
+        let mut command = Command::new(fixpoint.unwrap_or(Path::new("fixpoint")));
+        if let Some(solver) = solver {
+            command.arg(format!("--solver-path={}", solver.display()));
+        }
+        let mut child = command
             .arg("-q")
             .arg("--stdin")
             .arg("--sorted-solution")

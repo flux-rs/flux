@@ -1019,7 +1019,15 @@ where
             return Ok(result.clone());
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
-            task.run(config::fixpoint_timeout())
+            let solver = match task.solver {
+                liquid_fixpoint::SmtSolver::Z3 => config::z3_path(),
+                liquid_fixpoint::SmtSolver::CVC5 => config::cvc5_path(),
+            };
+            task.run(
+                config::fixpoint_timeout(),
+                config::fixpoint_path().as_deref(),
+                solver.as_deref(),
+            )
         })?;
 
         if config::is_cache_enabled() {

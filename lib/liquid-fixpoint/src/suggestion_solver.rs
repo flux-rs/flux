@@ -4,6 +4,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
     io,
+    path::Path,
 };
 
 use crate::{
@@ -48,11 +49,12 @@ impl<T: Types> SuggestionSolver<T> {
         global_consts: &[ConstDecl<T>],
         funs: &[FunDef<T>],
         datatype_decls: Vec<DataDecl<T>>,
+        z3: Option<&Path>,
     ) -> Result<Self, SuggestionSolverError> {
         let datatype_decls =
             crate::constraint_with_env::topo_sort_data_declarations(datatype_decls);
         let (env, declarations) = ConstraintGlobalEnv::new(&datatype_decls, global_consts, funs);
-        let mut session = Z3Subprocess::new()?;
+        let mut session = Z3Subprocess::new(z3)?;
         session.reset(&declarations)?;
         Ok(Self { session, env })
     }

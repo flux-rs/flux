@@ -3,6 +3,7 @@
 
 use std::{
     io::{self, BufRead, BufReader, Read as _, Write as _},
+    path::Path,
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
     thread::JoinHandle,
@@ -44,8 +45,9 @@ pub(crate) struct Z3Subprocess {
 }
 
 impl Z3Subprocess {
-    pub(crate) fn new() -> io::Result<Self> {
-        let mut child = Command::new("z3")
+    /// Starts the `z3` executable, looking it up in `PATH` if not given.
+    pub(crate) fn new(z3: Option<&Path>) -> io::Result<Self> {
+        let mut child = Command::new(z3.unwrap_or(Path::new("z3")))
             .args(["-smt2", "-in"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

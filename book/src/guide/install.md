@@ -24,7 +24,8 @@ curl -fsSL https://raw.githubusercontent.com/flux-rs/flux/main/install.sh | bash
   You can download a binary for your platform from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). We recommend downloading the latest version, but older version should also work.
 
 **Note:**
-Make sure that the `liquid-fixpoint` and `z3` binaries are in your `$PATH`.
+Make sure that the `liquid-fixpoint` and `z3` binaries are in your `$PATH`, or point Flux to them
+with the `-Ffixpoint=<path>` and `-Fz3=<path>` [flags](#flux-flags) (and `-Fcvc5=<path>` for cvc5).
 
 ## Install
 
