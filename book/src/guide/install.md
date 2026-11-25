@@ -215,33 +215,62 @@ A package is configured in two places:
 
 ### Flux Flags
 
-The `flux` binary accepts configuration flags in the format `-Fname=value`. For boolean flags, the
-`value` can be one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, `false`. Alternatively, the `value`
-can be omitted which will default to `true`. For example, to set the solver to `cvc5` and enable
-qualifier scraping:
+Under the hood, Flux is controlled by flags of the form `-Fname=value`. For boolean flags, `value`
+can be one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, `false`, or be omitted, which means
+`true`. For all available flags, see
+<https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>.
+
+With `cargo flux`, you rarely need to pass flags yourself. Set them where they belong instead, and
+`cargo flux` translates them into flags for each package:
+
+- Properties of the crate, e.g., the solver, go in its manifest:
+
+  ```toml
+  [package.metadata.flux]
+  enabled = true
+  solver = "cvc5"
+  scrape-quals = true
+  ```
+
+- How Flux runs, e.g., timeouts or extra output, goes in `.flux/config.toml`, either in your project
+  or in `~/.flux/config.toml` for all your projects:
+
+  ```toml
+  [fixpoint]
+  timeout = 30
+
+  [stats]
+  timings = true
+  ```
+
+For a one-off run, you can still pass flags on the command line, or in the `FLUXFLAGS` environment
+variable:
+
+```console
+cargo flux --Ftimings
+FLUXFLAGS="-Ftimings" cargo flux
+```
+
+See [how flags are combined](../reference/config.md#how-flags-are-combined) for how these sources
+interact.
+
+When running `flux` on a single file, which doesn't read the manifest or the configuration files,
+pass the flags directly:
 
 ```console
 flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 ```
 
-For all available flags, see <https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>
+### Verbose Output
 
-When running `cargo flux`, flags defined in the `FLUXFLAGS` environment variable are passed to all
-packages checked by Flux, for example, to print timing information:
+One particularly useful setting is
 
-```console
-FLUXFLAGS="-Ftimings" cargo flux
+```toml
+[diagnostics]
+verbose = true
 ```
 
-See [how flags are combined](../reference/config.md#how-flags-are-combined) for how these flags
-interact with the manifest and the configuration files.
-
-### Verbose Flag
-
-One particularly useful flag is
-
-```console
-FLUXFLAGS="-Fflux-verbose" cargo flux
-```
-
-This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see _which_ function's code caused the issue, so you might mark it as `trusted`, so flux can skip checking its body, and hence, live to fight another day...
+or `--Fflux-verbose` for a single run. It makes Flux print the name of each function as it checks
+it, along with more detailed error messages. This is helpful when Flux hits an internal error (ICE):
+you can see _which_ function caused it, mark it as `trusted` so Flux skips checking its body, and
+live to fight another day.
