@@ -638,10 +638,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flux-dev"
-version = "0.1.0"
-
-[[package]]
 name = "flux-driver"
 version = "0.1.0"
 dependencies = [
@@ -1918,7 +1914,6 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
- "flux-dev",
  "flux-sysroot",
  "itertools 0.14.0",
 ]
@@ -2562,8 +2557,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
- "flux-dev",
  "flux-sysroot",
+ "home",
+ "rustix",
  "serde",
  "toml",
  "walkdir",

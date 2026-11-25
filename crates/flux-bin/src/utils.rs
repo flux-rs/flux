@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use serde::Deserialize;
 
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";
@@ -15,42 +14,29 @@ pub const LIB_PATH: &str = "LD_LIBRARY_PATH";
 #[cfg(target_os = "macos")]
 pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 
-pub use flux_sysroot::{FLUX_SYSROOT, flux_sysroot_dir};
+use flux_sysroot::SysrootManifest;
+pub use flux_sysroot::{FLUX_SYSROOT, flux_sysroot_dir, lib_dir};
 
 pub const EXIT_ERR: i32 = -1;
 
 const FLUX_DRIVER: &str = "FLUX_DRIVER";
 
-#[derive(Deserialize)]
-pub struct ToolchainToml {
-    toolchain: ToolchainSpec,
-}
-
-#[derive(Deserialize)]
-pub struct ToolchainSpec {
-    channel: String,
-}
-
 pub fn get_flux_driver_path(sysroot: &Path) -> Result<PathBuf> {
-    let path = if let Some(path) = env::var_os(FLUX_DRIVER) {
-        PathBuf::from(path)
-    } else {
-        let mut path = sysroot.join("flux-driver");
-        if cfg!(target_os = "windows") {
-            path.set_extension("exe");
-        }
-        path
-    };
+    let path = env::var_os(FLUX_DRIVER)
+        .map_or_else(|| flux_sysroot::bin_path(sysroot, "flux-driver"), PathBuf::from);
     if !path.is_file() {
         return Err(anyhow!("path to flux-driver {:?} does not exist or is not a file", path));
     }
     Ok(path)
 }
 
-pub fn get_rust_toolchain() -> Result<String> {
-    let toolchain_str = include_str!("../../../rust-toolchain.toml");
-    let toolchain_file: ToolchainToml = toml::from_str(toolchain_str)?;
-    Ok(toolchain_file.toolchain.channel)
+/// Reads the manifest of `sysroot`, exiting with an error suggesting to reinstall Flux if it's
+/// invalid.
+pub fn read_sysroot_manifest(sysroot: &Path) -> SysrootManifest {
+    SysrootManifest::read(sysroot).unwrap_or_else(|err| {
+        eprintln!("error: {err}");
+        std::process::exit(EXIT_ERR)
+    })
 }
 
 pub fn get_binary_path(toolchain: &str, bin: &str) -> anyhow::Result<PathBuf> {
@@ -99,19 +85,18 @@ fn bytes_to_pathbuf(input: Vec<u8>) -> Result<PathBuf> {
     Ok(PathBuf::from(String::from_utf8(input)?.trim()))
 }
 
-pub fn get_version() -> &'static str {
-    concat!(env!("GIT_SHA"), " (", env!("GIT_DATE"), ")")
-}
-
-pub fn get_version_full() -> &'static str {
-    concat!(env!("GIT_SHA_FULL"), " (", env!("GIT_DATE"), ")")
-}
-
+/// Prints the version of the active Flux sysroot. The version is recorded in the sysroot manifest when it
+/// is built.
 pub fn print_version_and_exit(program_name: &str, verbose: bool) -> ! {
+    let sysroot = flux_sysroot_dir();
+    let manifest = read_sysroot_manifest(&sysroot);
+    let version = &manifest.version;
     if verbose {
-        println!("{} {}", program_name, get_version_full());
+        println!("{program_name} {} ({})", version.sha_full, version.date);
+        println!("sysroot: {}", sysroot.display());
+        println!("toolchain: {}", manifest.toolchain);
     } else {
-        println!("{} {}", program_name, get_version());
+        println!("{program_name} {} ({})", version.sha, version.date);
     }
     std::process::exit(0)
 }

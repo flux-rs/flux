@@ -185,7 +185,8 @@ pub struct Flags {
         default_missing_value = "true"
     )]
     pub full_compilation: bool,
-    /// Path to the Flux sysroot directory. If not set, the driver infers it from its own binary location.
+    /// Path to the Flux sysroot directory. If not set, the driver infers it from its own binary
+    /// location, i.e., `<sysroot>/bin/flux-driver`.
     #[arg(long = flux_arg!("sysroot"), value_name = "PATH")]
     pub sysroot: Option<PathBuf>,
     /// If `true`, all code is trusted by default. You can selectively untrust items by marking them with `#[trusted(no)]`. The default value of this flag is `false`, i.e., all code is untrusted by default.

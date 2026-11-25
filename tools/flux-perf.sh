@@ -38,7 +38,7 @@ TIMEOUT=1m
 
 # This will guess the path of the real `flux-driver`. Adjust accordingly if necessary
 export FLUX_SYSROOT="${FLUX_SYSROOT:-${FLUX_HOME:-$HOME/.flux}/sysroot}"
-export FLUX_DRIVER="${FLUX_SYSROOT}/flux-driver"
+export FLUX_DRIVER="${FLUX_SYSROOT}/bin/flux-driver"
 
 # Cargo reads for stdout so we must print to stderr
 info() { echo "$@" 1>&2; }

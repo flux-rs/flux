@@ -8,12 +8,15 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 cargo_metadata.workspace = true
-flux-dev.workspace = true
 flux-sysroot.workspace = true
+home.workspace = true
 serde.workspace = true
 toml.workspace = true
 walkdir.workspace = true
 xflags = "0.3.2"
+
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+rustix = { version = "1.1.2", features = ["fs"] }
 
 [lints]
 workspace = true

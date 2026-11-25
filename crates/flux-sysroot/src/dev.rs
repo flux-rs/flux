@@ -1,4 +1,4 @@
-//! Shared development utilities for `xtask` and `tests`.
+//! Development utilities shared by `xtask` and `tests`.
 
 use std::{
     path::{Path, PathBuf},
@@ -11,7 +11,7 @@ pub fn default_flags(sysroot: &Path, extern_args: Vec<String>) -> Vec<String> {
         "--edition=2021".to_string(),
         // Transitive deps ignore `--extern`, so they still need a search path.
         "-L".to_string(),
-        sysroot.display().to_string(),
+        crate::lib_dir(sysroot).display().to_string(),
     ];
     flags.extend(extern_args);
     flags.push("-Fverify=on".to_string());
