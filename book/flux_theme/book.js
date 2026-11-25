@@ -4,7 +4,7 @@ const Range = ace.require("ace/range").Range;
 
 const mode = "flux";
 
-const fluxServerUrl = "https://flux.goto.ucsd.edu";
+const fluxServerUrl = "https://flux.dcc.uchile.cl";
 // const fluxServerUrl = "http://localhost:3000";
 
 function pad(size, line_or_null) {
