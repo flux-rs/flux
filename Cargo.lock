@@ -2564,6 +2564,7 @@ dependencies = [
  "cargo_metadata",
  "flux-dev",
  "flux-sysroot",
+ "rustix",
  "serde",
  "toml",
  "walkdir",

@@ -4,6 +4,8 @@ target
 *.dot
 log
 sysroot/
+sysroot.new/
+sysroot.old/
 fixpoint
 
 .DS_Store

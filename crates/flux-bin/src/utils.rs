@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use serde::Deserialize;
 
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";
@@ -21,16 +20,6 @@ pub use flux_sysroot::{FLUX_SYSROOT, flux_sysroot_dir};
 pub const EXIT_ERR: i32 = -1;
 
 const FLUX_DRIVER: &str = "FLUX_DRIVER";
-
-#[derive(Deserialize)]
-pub struct ToolchainToml {
-    toolchain: ToolchainSpec,
-}
-
-#[derive(Deserialize)]
-pub struct ToolchainSpec {
-    channel: String,
-}
 
 pub fn get_flux_driver_path(sysroot: &Path) -> Result<PathBuf> {
     let path = if let Some(path) = env::var_os(FLUX_DRIVER) {
@@ -48,10 +37,13 @@ pub fn get_flux_driver_path(sysroot: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
-pub fn get_rust_toolchain() -> Result<String> {
-    let toolchain_str = include_str!("../../../rust-toolchain.toml");
-    let toolchain_file: ToolchainToml = toml::from_str(toolchain_str)?;
-    Ok(toolchain_file.toolchain.channel)
+/// Reads the manifest of `sysroot`, exiting with an error suggesting to reinstall Flux if it's
+/// invalid.
+pub fn read_sysroot_manifest(sysroot: &Path) -> SysrootManifest {
+    SysrootManifest::read(sysroot).unwrap_or_else(|err| {
+        eprintln!("error: {err}");
+        std::process::exit(EXIT_ERR)
+    })
 }
 
 pub fn get_binary_path(toolchain: &str, bin: &str) -> anyhow::Result<PathBuf> {
@@ -104,16 +96,14 @@ fn bytes_to_pathbuf(input: Vec<u8>) -> Result<PathBuf> {
 /// is built.
 pub fn print_version_and_exit(program_name: &str, verbose: bool) -> ! {
     let sysroot = flux_sysroot_dir();
-    let version = SysrootManifest::read(&sysroot).and_then(|manifest| manifest.version);
-    match version {
-        Some(version) if verbose => {
-            println!("{program_name} {} ({})", version.sha_full, version.date);
-        }
-        Some(version) => println!("{program_name} {} ({})", version.sha, version.date),
-        None => println!("{program_name} (unknown version)"),
-    }
+    let manifest = read_sysroot_manifest(&sysroot);
+    let version = &manifest.version;
     if verbose {
+        println!("{program_name} {} ({})", version.sha_full, version.date);
         println!("sysroot: {}", sysroot.display());
+        println!("toolchain: {}", manifest.toolchain);
+    } else {
+        println!("{program_name} {} ({})", version.sha, version.date);
     }
     std::process::exit(0)
 }

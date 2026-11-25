@@ -1,6 +1,7 @@
 #![feature(variant_count)]
 
 use std::{
+    collections::BTreeMap,
     env,
     ffi::OsStr,
     fs, io,
@@ -16,8 +17,8 @@ use cargo_metadata::{
 };
 use flux_dev::Suite;
 use flux_sysroot::{
-    default_flux_sysroot_dir, FluxVersion, SysrootCrate, SysrootManifest, FLUX_SYSROOT,
-    SYSROOT_MANIFEST,
+    default_flux_sysroot_dir, parse_toolchain_file, FluxVersion, SysrootCrate, SysrootManifest,
+    FLUX_SYSROOT, SYSROOT_MANIFEST,
 };
 
 xflags::xflags! {
@@ -483,19 +484,31 @@ impl FluxLib {
     }
 }
 
+/// Builds the sysroot in a staging directory next to `config.dst` and then replaces `config.dst`
+/// with it, so a failed build leaves the existing sysroot untouched.
 fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
-    remove_path(&config.dst)?;
-    create_dir(&config.dst)?;
+    let staging = sibling_path(&config.dst, "new");
+    remove_path(&staging)?;
+    create_dir(&staging)?;
 
     let flux_driver = build_binary("flux-driver", config.profile, config.rust_fixpoint)?;
-    copy_file(&flux_driver, &config.dst)?;
+    copy_file(&flux_driver, &staging)?;
+
+    // The libraries are built with `cargo-flux` using the staging sysroot, which needs a valid
+    // manifest to find the toolchain. Write one without crates now and add them once built.
+    let mut manifest = SysrootManifest {
+        toolchain: rust_toolchain()?,
+        version: flux_version(),
+        crates: BTreeMap::new(),
+    };
+    write_sysroot_toml(&manifest, &staging)?;
 
     let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint)?;
 
     if config.build_libs.force {
         Command::new(&cargo_flux)
             .args(["flux", "clean"])
-            .env(FLUX_SYSROOT, &config.dst)
+            .env(FLUX_SYSROOT, &staging)
             .run()?;
     }
     let artifacts = Command::new(&cargo_flux)
@@ -507,12 +520,50 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
                 .iter()
                 .flat_map(|lib| ["-p", lib.package_name()]),
         )
-        .env(FLUX_SYSROOT, &config.dst)
+        .env(FLUX_SYSROOT, &staging)
         .run_with_cargo_metadata()?;
-    let mut manifest = copy_artifacts(&artifacts, &config.dst)?;
-    manifest.version = Some(flux_version());
-    write_sysroot_toml(&manifest, &config.dst)?;
+    manifest.crates = copy_artifacts(&artifacts, &staging)?;
+    write_sysroot_toml(&manifest, &staging)?;
+
+    replace_dir(&staging, &config.dst)?;
     Ok(flux_driver)
+}
+
+/// Replaces `dst` with `src`. Where the platform and filesystem support it, the two are exchanged
+/// atomically. Elsewhere (e.g., on Windows), `dst` is moved out of the way first, so it briefly
+/// doesn't exist.
+fn replace_dir(src: &Path, dst: &Path) -> anyhow::Result<()> {
+    if !dst.exists() {
+        return rename(src, dst);
+    }
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        use rustix::fs::{renameat_with, RenameFlags, CWD};
+        eprintln!("$ exchange {} {}", src.display(), dst.display());
+        if renameat_with(CWD, src, CWD, dst, RenameFlags::EXCHANGE).is_ok() {
+            // `src` now holds the old contents of `dst`
+            return remove_path(src);
+        }
+    }
+    let old = sibling_path(dst, "old");
+    remove_path(&old)?;
+    rename(dst, &old)?;
+    rename(src, dst)?;
+    remove_path(&old)
+}
+
+fn rename(src: &Path, dst: &Path) -> anyhow::Result<()> {
+    eprintln!("$ mv {} {}", src.display(), dst.display());
+    fs::rename(src, dst).map_err(|err| {
+        anyhow!("failed to rename `{}` to `{}`: {err}", src.display(), dst.display())
+    })
+}
+
+/// Returns `path` with `.{suffix}` appended, e.g., `sysroot` becomes `sysroot.new`.
+fn sibling_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(format!(".{suffix}"));
+    path.with_file_name(name)
 }
 
 /// Version of the Flux sources, read from git when the sysroot is built.
@@ -524,12 +575,28 @@ fn flux_version() -> FluxVersion {
     }
 }
 
+/// Rust toolchain used to build the sysroot. When xtask runs through rustup, `RUSTUP_TOOLCHAIN`
+/// holds the active toolchain, whether it comes from `+toolchain` or `rust-toolchain.toml`.
+/// Otherwise, it's the one in `rust-toolchain.toml`.
+fn rust_toolchain() -> anyhow::Result<String> {
+    if let Ok(toolchain) = env::var("RUSTUP_TOOLCHAIN") {
+        return Ok(toolchain);
+    }
+    let path = workspace_root().join("rust-toolchain.toml");
+    let content = fs::read_to_string(&path)
+        .map_err(|err| anyhow!("failed to read `{}`: {err}", path.display()))?;
+    Ok(parse_toolchain_file(&content)?)
+}
+
+fn workspace_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap()
+}
+
 /// Runs git in the workspace root and returns its trimmed output, or `unknown` if it fails.
 fn git(args: &[&str]) -> String {
-    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     Command::new("git")
         .args(args)
-        .current_dir(workspace_root)
+        .current_dir(workspace_root())
         .output()
         .ok()
         .filter(|output| output.status.success())
@@ -537,22 +604,22 @@ fn git(args: &[&str]) -> String {
         .map_or_else(|| "unknown".to_string(), |stdout| stdout.trim().to_string())
 }
 
-fn copy_artifacts(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<SysrootManifest> {
-    let mut manifest = SysrootManifest::default();
+fn copy_artifacts(
+    artifacts: &[Artifact],
+    sysroot: &Path,
+) -> anyhow::Result<BTreeMap<String, SysrootCrate>> {
+    let mut crates = BTreeMap::<String, SysrootCrate>::new();
     for artifact in artifacts {
         let Some(lib) = FluxLib::from_artifact(artifact) else { continue };
 
-        let entry = manifest
-            .crates
-            .entry(lib.target_name().to_string())
-            .or_default();
+        let entry = crates.entry(lib.target_name().to_string()).or_default();
         entry.extern_spec = lib.is_std_extern_spec();
 
         for filename in &artifact.filenames {
             copy_artifact(artifact, filename, sysroot, entry)?;
         }
     }
-    Ok(manifest)
+    Ok(crates)
 }
 
 fn copy_artifact(

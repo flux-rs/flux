@@ -11,8 +11,8 @@ use flux_bin::{
     cargo_flux_opts::{CargoFluxCommand, Cli},
     config::FluxConfig,
     utils::{
-        EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
-        print_version_and_exit,
+        EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, print_version_and_exit,
+        read_sysroot_manifest,
     },
 };
 use itertools::Itertools;
@@ -38,11 +38,11 @@ fn main() {
 }
 
 fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
-    let toolchain = get_rust_toolchain()?;
+    let sysroot = flux_sysroot_dir();
+    let toolchain = read_sysroot_manifest(&sysroot).toolchain;
     let cargo_path = get_binary_path(&toolchain, "cargo")?;
 
     let metadata = cargo_flux_cmd.metadata().cargo_path(&cargo_path).exec()?;
-    let sysroot = flux_sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
     let config_file = write_cargo_config(metadata, &sysroot, &cargo_flux_cmd)?;
 

@@ -2,7 +2,7 @@
 
 use std::{
     collections::BTreeMap,
-    env,
+    env, fmt, fs,
     path::{Path, PathBuf},
 };
 
@@ -12,14 +12,52 @@ use serde::{Deserialize, Serialize};
 ///
 /// Written by `xtask`; read by `flux`, the test runner, and `flux-driver` to resolve the sysroot
 /// crates by path instead of by name.
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize)]
 pub struct SysrootManifest {
-    /// Version of Flux the sysroot was built from. `None` for sysroots created before this field
-    /// was added.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub version: Option<FluxVersion>,
+    /// Rust toolchain `flux-driver` was built with, and therefore must run with, e.g.,
+    /// `nightly-2026-11-21-x86_64-unknown-linux-gnu`.
+    pub toolchain: String,
+    /// Version of Flux the sysroot was built from.
+    pub version: FluxVersion,
     #[serde(default)]
     pub crates: BTreeMap<String, SysrootCrate>,
+}
+
+/// Where users are pointed to when their installation is broken.
+pub const INSTALL_GUIDE_URL: &str = "https://flux-rs.github.io/flux/guide/install.html";
+
+/// Error returned when the sysroot's manifest is missing or malformed. The error message suggests
+/// reinstalling Flux.
+#[derive(Debug)]
+pub struct InvalidSysroot {
+    sysroot: PathBuf,
+    reason: String,
+}
+
+impl fmt::Display for InvalidSysroot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "invalid Flux sysroot at `{}`", self.sysroot.display())?;
+        writeln!(f, "note: {}", self.reason)?;
+        write!(f, "help: try reinstalling Flux (see {INSTALL_GUIDE_URL})")
+    }
+}
+
+impl std::error::Error for InvalidSysroot {}
+
+#[derive(Deserialize)]
+struct ToolchainFile {
+    toolchain: ToolchainSpec,
+}
+
+#[derive(Deserialize)]
+struct ToolchainSpec {
+    channel: String,
+}
+
+/// Returns the channel of a toolchain given the contents of its `rust-toolchain.toml` file.
+pub fn parse_toolchain_file(content: &str) -> Result<String, toml::de::Error> {
+    let file: ToolchainFile = toml::from_str(content)?;
+    Ok(file.toolchain.channel)
 }
 
 /// Git version of the Flux sources a sysroot was built from, recorded when the sysroot is built.
@@ -50,17 +88,22 @@ pub struct SysrootCrate {
 }
 
 impl SysrootManifest {
-    /// Reads the manifest of `sysroot`. Returns `None` if it is missing or cannot be parsed.
-    pub fn read(sysroot: &Path) -> Option<Self> {
-        let content = std::fs::read_to_string(sysroot.join(SYSROOT_MANIFEST)).ok()?;
-        toml::from_str(&content).ok()
+    /// Reads the manifest of `sysroot`.
+    pub fn read(sysroot: &Path) -> Result<Self, InvalidSysroot> {
+        let path = sysroot.join(SYSROOT_MANIFEST);
+        let invalid = |reason| InvalidSysroot { sysroot: sysroot.to_path_buf(), reason };
+        let content = fs::read_to_string(&path)
+            .map_err(|err| invalid(format!("failed to read `{}`: {err}", path.display())))?;
+        toml::from_str(&content).map_err(|err| {
+            invalid(format!("failed to parse `{}`: {}", path.display(), err.message()))
+        })
     }
 
     /// Libraries get both their `.rmeta` and their `.rlib`: since cargo stopped embedding
     /// metadata in rlibs, the former is the only copy of the metadata and the latter is still
     /// needed to link.
     pub fn extern_args(sysroot: &Path) -> Vec<String> {
-        let Some(manifest) = Self::read(sysroot) else { return vec![] };
+        let Ok(manifest) = Self::read(sysroot) else { return vec![] };
         let mut args = vec![];
         for (name, krate) in &manifest.crates {
             for file in [&krate.rmeta, &krate.rlib, &krate.dylib]
@@ -75,7 +118,7 @@ impl SysrootManifest {
     }
 
     pub fn extern_specs(sysroot: &Path) -> Vec<(String, PathBuf)> {
-        let Some(manifest) = Self::read(sysroot) else { return vec![] };
+        let Ok(manifest) = Self::read(sysroot) else { return vec![] };
         manifest
             .crates
             .iter()
