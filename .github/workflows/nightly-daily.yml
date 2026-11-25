@@ -1,0 +1,64 @@
+name: nightly-daily
+
+# Once a day, keeps a copy of the `nightly` release, published by nightly.yml, as
+# `nightly-yyyy-mm-dd` if it was built from a commit that the latest dated release wasn't. Only the
+# newest dated releases are kept, so their tags don't pile up in every clone.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Shared with the publish job of nightly.yml, so the `nightly` release doesn't change while it's
+# being copied.
+concurrency:
+  group: nightly-release
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  # How many dated releases to keep.
+  KEEP: 30
+  DATED: "^nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download the nightly release
+        run: gh release download nightly --dir nightly
+
+      - name: Create the dated release
+        run: |
+          commit=$(jq -r .commit nightly/manifest.json)
+          latest=$(gh release list --limit 1000 --json tagName \
+            --jq "[.[].tagName | select(test(\"$DATED\"))] | sort | last // empty")
+          if [ -n "$latest" ] && [ "$(gh api "repos/$GH_REPO/commits/$latest" --jq .sha)" = "$commit" ]; then
+            echo "No new commits since $latest"
+            exit 0
+          fi
+          tag="nightly-$(date -u +%Y-%m-%d)"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag already exists"
+            exit 0
+          fi
+          # Point the manifest to the archives of the dated release.
+          jq --arg tag "$tag" \
+            '.targets |= map_values(.url |= sub("/download/nightly/"; "/download/\($tag)/"))' \
+            nightly/manifest.json > manifest.json
+          mv manifest.json nightly/manifest.json
+          gh release create "$tag" nightly/* --prerelease --target "$commit" \
+            --title "$tag" --notes "Nightly build of $commit"
+
+      - name: Delete old dated releases
+        run: |
+          gh release list --limit 1000 --json tagName --jq ".[].tagName | select(test(\"$DATED\"))" \
+            | sort -r | tail -n +$((KEEP + 1)) \
+            | while read -r tag; do
+                echo "Deleting $tag"
+                gh release delete "$tag" --cleanup-tag --yes
+              done
