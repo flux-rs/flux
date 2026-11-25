@@ -123,17 +123,22 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
+    if cmd.offline {
+        // Inherited by every cargo we run, including the one `cargo-flux` runs to build the libraries.
+        // SAFETY: xtask is single-threaded, so nothing reads the environment concurrently.
+        unsafe { env::set_var("CARGO_NET_OFFLINE", "true") };
+    }
+
     match cmd.subcommand {
         XtaskCmd::Test(args) => test(args, cmd.rust_fixpoint),
         XtaskCmd::LeanBench(args) => lean_bench(args, cmd.rust_fixpoint),
         XtaskCmd::Run(args) => run(args, cmd.rust_fixpoint),
-        XtaskCmd::Install(args) => install(&args, cmd.offline, cmd.rust_fixpoint),
+        XtaskCmd::Install(args) => install(&args, cmd.rust_fixpoint),
         XtaskCmd::Doc(args) => doc(args),
         XtaskCmd::BuildSysroot(_) => {
             let config = SysrootConfig {
                 profile: Profile::Dev,
                 rust_fixpoint: cmd.rust_fixpoint,
-                offline: cmd.offline,
                 dst: local_sysroot_dir()?,
                 build_libs: BuildLibs { force: true, libs: FluxLib::ALL },
             };
@@ -142,7 +147,7 @@ fn main() -> anyhow::Result<()> {
         }
         XtaskCmd::Uninstall(_) => uninstall(),
         XtaskCmd::Expand(args) => expand(args),
-        XtaskCmd::Blick(args) => blick(&args, cmd.offline),
+        XtaskCmd::Blick(args) => blick(&args),
     }
 }
 
@@ -178,7 +183,6 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
         let config = SysrootConfig {
             profile: Profile::Dev,
             rust_fixpoint,
-            offline: false,
             dst: dst.clone(),
             build_libs: BuildLibs { force: false, libs },
         };
@@ -194,7 +198,6 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
-        offline: false,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
     };
@@ -348,7 +351,6 @@ fn run_inner(
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
-        offline: false,
         dst: local_sysroot_dir()?,
         build_libs,
     };
@@ -365,12 +367,11 @@ fn run_inner(
         .run()
 }
 
-fn install(args: &Install, offline: bool, rust_fixpoint: bool) -> anyhow::Result<()> {
+fn install(args: &Install, rust_fixpoint: bool) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     let config = SysrootConfig {
         profile: args.profile(),
         rust_fixpoint,
-        offline,
         dst: default_flux_sysroot_dir(),
         build_libs: BuildLibs { force: false, libs },
     };
@@ -454,10 +455,9 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn blick(args: &Blick, offline: bool) -> anyhow::Result<()> {
+fn blick(args: &Blick) -> anyhow::Result<()> {
     Command::new("cargo")
         .args(["run", "--package", "blick"])
-        .args_if(offline, ["--offline"])
         .arg("--")
         .args_if_some(args.port, |port| ["--port".to_string(), port.to_string()])
         // the regression tests, to open in the page
@@ -465,16 +465,10 @@ fn blick(args: &Blick, offline: bool) -> anyhow::Result<()> {
         .run()
 }
 
-fn build_binary(
-    bin: &str,
-    profile: Profile,
-    rust_fixpoint: bool,
-    offline: bool,
-) -> anyhow::Result<Utf8PathBuf> {
+fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool) -> anyhow::Result<Utf8PathBuf> {
     Command::new("cargo")
         .args(["build", "--bin", bin, "--profile", profile.as_str()])
         .args_if(rust_fixpoint, ["--features", "rust-fixpoint"])
-        .args_if(offline, ["--offline"])
         .run_with_cargo_metadata()?
         .into_iter()
         .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
@@ -487,8 +481,6 @@ struct SysrootConfig {
     profile: Profile,
     /// Whether rust-fixpoint should be enabled to build `flux-driver`
     rust_fixpoint: bool,
-    /// Whether to pass `--offline` when building the binaries
-    offline: bool,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
     build_libs: BuildLibs,
@@ -557,8 +549,7 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     create_dir(&bin_dir(&staging))?;
     create_dir(&lib_dir(&staging))?;
 
-    let flux_driver =
-        build_binary("flux-driver", config.profile, config.rust_fixpoint, config.offline)?;
+    let flux_driver = build_binary("flux-driver", config.profile, config.rust_fixpoint)?;
     copy_file(&flux_driver, bin_path(&staging, "flux-driver"))?;
 
     // The libraries are built with `cargo-flux` using the staging sysroot, which needs a valid
@@ -570,10 +561,9 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     };
     write_sysroot_toml(&manifest, &staging)?;
 
-    let cargo_flux =
-        build_binary("cargo-flux", config.profile, config.rust_fixpoint, config.offline)?;
+    let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint)?;
     copy_file(&cargo_flux, bin_path(&staging, "cargo-flux"))?;
-    let flux = build_binary("flux", config.profile, config.rust_fixpoint, config.offline)?;
+    let flux = build_binary("flux", config.profile, config.rust_fixpoint)?;
     copy_file(&flux, bin_path(&staging, "flux"))?;
 
     if config.build_libs.force {
