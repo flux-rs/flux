@@ -12,16 +12,10 @@ You can install and then run Flux either on a single file or on an entire crate.
   [z3](https://github.com/Z3Prover/z3) 4.15 or later
 
   The [installation step](#install) downloads both for you on the platforms with prebuilt binaries:
-  x86_64 Linux, aarch64 macOS, and x86_64 Windows.
-
-  On other platforms, install them yourself:
+  x86_64 Linux, aarch64 macOS, and x86_64 Windows. On other platforms, install them yourself:
   [build liquid-fixpoint from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install)
   and download z3 from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). Make sure that
   the `fixpoint` and `z3` binaries are in your `$PATH`.
-
-  To use specific builds instead, point Flux to them with the `-Ffixpoint=<path>`, `-Fz3=<path>`,
-  and `-Fcvc5=<path>` [flags](#flux-flags), which take precedence over both the downloaded solvers
-  and your `$PATH`.
 
 ## Install
 
@@ -34,9 +28,11 @@ git clone https://github.com/flux-rs/flux
 cd flux
 ```
 
-To build the source you need a nightly version of `rustc`.
-We pin the version using a [toolchain file](https://github.com/flux-rs/flux/blob/main/rust-toolchain.toml) (more info [here](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file)).
-If you are using `rustup`, no special action is needed as it should install the correct `rustc` version and components based on the information on that file.
+Flux is built with a specific nightly version of Rust, pinned in the repository's
+[toolchain file](https://github.com/flux-rs/flux/blob/main/rust-toolchain.toml). You don't need to
+install it yourself: `rustup`
+[reads that file](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file) and installs
+that version, together with the components Flux needs, the first time you build.
 
 Next, run the following to build and install `flux` binaries
 
