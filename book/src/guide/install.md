@@ -42,7 +42,7 @@ cargo xtask install --bundle-solvers
 
 This will install the Flux sysroot (the binaries and precompiled libraries) to `$HOME/.flux/sysroot` and
 link two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`). These two binaries
-should be used respectively to run Flux on either a single file or on a project using cargo.
+should be used respectively to run Flux on either a single file or on a cargo project.
 
 With `--bundle-solvers`, the installation also downloads liquid-fixpoint and z3 into the sysroot if
 there are prebuilt binaries for your platform. Flux looks up any solver that isn't downloaded in your
@@ -174,14 +174,14 @@ thing).
 
 Read [these chapters](SUMMARY.md#learn) to learn more about what you specify and verify with `flux`.
 
-## A note about the flux-driver binary
+## Configuration
 
-The `flux-driver` binary is a [rustc
-driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface)
-(similar to how clippy works) meaning it uses rustc as a library to "drive"
-compilation performing additional analysis along the way. Running the binary
-requires dynamically linking a correct version of `librustc`. Thus, to avoid the
-hassle you should never execute it directly. Instead, use `flux` or `cargo-flux`.
+A package is configured in two places:
+
+- The `[package.metadata.flux]` table in `Cargo.toml` describes properties of the crate, i.e.,
+  _what_ is verified. See [The Manifest Format](../reference/manifest.md).
+- `.flux/config.toml` files control _how_ `cargo flux` runs, e.g., caching, timeouts or extra
+  output. See [Configuration](../reference/config.md).
 
 ## Editor Support
 
@@ -201,76 +201,3 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
   ]
 }
 ```
-
-**Note:** Make sure to edit the paths in the above snippet to point to the correct locations on your machine.
-
-## Configuration
-
-A package is configured in two places:
-
-- The `[package.metadata.flux]` table in `Cargo.toml` describes properties of the crate, i.e.,
-  _what_ is verified. See [The Manifest Format](../reference/manifest.md).
-- `.flux/config.toml` files control _how_ `cargo flux` runs, e.g., caching, timeouts or extra
-  output. See [Configuration](../reference/config.md).
-
-### Flux Flags
-
-Under the hood, Flux is controlled by flags of the form `-Fname=value`. For boolean flags, `value`
-can be one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, `false`, or be omitted, which means
-`true`. For all available flags, see
-<https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>.
-
-With `cargo flux`, you rarely need to pass flags yourself. Set them where they belong instead, and
-`cargo flux` translates them into flags for each package:
-
-- Properties of the crate, e.g., the solver, go in its manifest:
-
-  ```toml
-  [package.metadata.flux]
-  enabled = true
-  solver = "cvc5"
-  scrape-quals = true
-  ```
-
-- How Flux runs, e.g., timeouts or extra output, goes in `.flux/config.toml`, either in your project
-  or in `~/.flux/config.toml` for all your projects:
-
-  ```toml
-  [fixpoint]
-  timeout = 30
-
-  [stats]
-  timings = true
-  ```
-
-For a one-off run, you can still pass flags on the command line, or in the `FLUXFLAGS` environment
-variable:
-
-```console
-cargo flux --Ftimings
-FLUXFLAGS="-Ftimings" cargo flux
-```
-
-See [how flags are combined](../reference/config.md#how-flags-are-combined) for how these sources
-interact.
-
-When running `flux` on a single file, which doesn't read the manifest or the configuration files,
-pass the flags directly:
-
-```console
-flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
-```
-
-### Verbose Output
-
-One particularly useful setting is
-
-```toml
-[diagnostics]
-verbose = true
-```
-
-or `--Fflux-verbose` for a single run. It makes Flux print the name of each function as it checks
-it, along with more detailed error messages. This is helpful when Flux hits an internal error (ICE):
-you can see _which_ function caused it, mark it as `trusted` so Flux skips checking its body, and
-live to fight another day.
