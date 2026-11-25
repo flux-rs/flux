@@ -3,46 +3,46 @@
     fn <a href="#tymethod.ty" class="fn">ty</a>(
         &amp;self,
         genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-        local_decls: &amp;LocalDecls,
+        local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
     ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="struct" href="struct.PlaceTy.html" title="struct flux_middle::PlaceTy">PlaceTy</a>&gt;;
 <span class="item-spacer"></span>    fn <a href="#tymethod.behind_raw_ptr" class="fn">behind_raw_ptr</a>(
         &amp;self,
         genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-        local_decls: &amp;LocalDecls,
+        local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
     ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;;
 <span class="item-spacer"></span>    fn <a href="#tymethod.min_pack" class="fn">min_pack</a>(
         &amp;self,
         genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-        local_decls: &amp;LocalDecls,
+        local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
     ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;&gt;;
 }</code></pre><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.ty" class="method"><a class="src rightside" href="../src/flux_middle/lib.rs.html#557-563">Source</a><h4 class="code-header">fn <a href="#tymethod.ty" class="fn">ty</a>(
     &amp;self,
     genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-    local_decls: &amp;LocalDecls,
+    local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
 ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="struct" href="struct.PlaceTy.html" title="struct flux_middle::PlaceTy">PlaceTy</a>&gt;</h4></section><section id="tymethod.behind_raw_ptr" class="method"><a class="src rightside" href="../src/flux_middle/lib.rs.html#565-574">Source</a><h4 class="code-header">fn <a href="#tymethod.behind_raw_ptr" class="fn">behind_raw_ptr</a>(
     &amp;self,
     genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-    local_decls: &amp;LocalDecls,
+    local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
 ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="tymethod.min_pack" class="method"><a class="src rightside" href="../src/flux_middle/lib.rs.html#579-593">Source</a><h4 class="code-header">fn <a href="#tymethod.min_pack" class="fn">min_pack</a>(
     &amp;self,
     genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-    local_decls: &amp;LocalDecls,
+    local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
 ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Compute the minimum packedness of all Adts within a Place. For example:
 #[repr(packed(4))] struct Z {}; #[repr(packed(2)] struct X {y: Z}
 When taking a reference to <code>.y</code>, this would be the minimum of 4 and 2</p>
-</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait <b>is</b> <a href="https://doc.rust-lang.org/nightly/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety".</i></p></div><h2 id="foreign-impls" class="section-header">Implementations on Foreign Types<a href="#foreign-impls" class="anchor">§</a></h2><details class="toggle implementors-toggle"><summary><section id="impl-PlaceExt-for-Place" class="impl"><a class="src rightside" href="../src/flux_middle/lib.rs.html#555">Source</a><a href="#impl-PlaceExt-for-Place" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.PlaceExt.html" title="trait flux_middle::PlaceExt">PlaceExt</a> for Place</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.min_pack" class="method trait-impl"><a class="src rightside" href="../src/flux_middle/lib.rs.html#579-593">Source</a><a href="#method.min_pack" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.min_pack" class="fn">min_pack</a>(
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait <b>is</b> <a href="https://doc.rust-lang.org/nightly/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety".</i></p></div><h2 id="foreign-impls" class="section-header">Implementations on Foreign Types<a href="#foreign-impls" class="anchor">§</a></h2><details class="toggle implementors-toggle"><summary><section id="impl-PlaceExt-for-Place" class="impl"><a class="src rightside" href="../src/flux_middle/lib.rs.html#555">Source</a><a href="#impl-PlaceExt-for-Place" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.PlaceExt.html" title="trait flux_middle::PlaceExt">PlaceExt</a> for <a class="struct" href="../flux_rustc_bridge/mir/struct.Place.html" title="struct flux_rustc_bridge::mir::Place">Place</a></h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.min_pack" class="method trait-impl"><a class="src rightside" href="../src/flux_middle/lib.rs.html#579-593">Source</a><a href="#method.min_pack" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.min_pack" class="fn">min_pack</a>(
     &amp;self,
     genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-    local_decls: &amp;LocalDecls,
+    local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
 ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Compute the minimum packedness of all Adts within a Place. For example:
 #[repr(packed(4))] struct Z {}; #[repr(packed(2)] struct X {y: Z}
 When taking a reference to <code>.y</code>, this would be the minimum of 4 and 2</p>
 </div></details><section id="method.ty" class="method trait-impl"><a class="src rightside" href="../src/flux_middle/lib.rs.html#557-563">Source</a><a href="#method.ty" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.ty" class="fn">ty</a>(
     &amp;self,
     genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-    local_decls: &amp;LocalDecls,
+    local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
 ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="struct" href="struct.PlaceTy.html" title="struct flux_middle::PlaceTy">PlaceTy</a>&gt;</h4></section><section id="method.behind_raw_ptr" class="method trait-impl"><a class="src rightside" href="../src/flux_middle/lib.rs.html#565-574">Source</a><a href="#method.behind_raw_ptr" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.behind_raw_ptr" class="fn">behind_raw_ptr</a>(
     &amp;self,
     genv: <a class="struct" href="global_env/struct.GlobalEnv.html" title="struct flux_middle::global_env::GlobalEnv">GlobalEnv</a>&lt;'_, '_&gt;,
-    local_decls: &amp;LocalDecls,
+    local_decls: &amp;<a class="type" href="../flux_rustc_bridge/mir/type.LocalDecls.html" title="type flux_rustc_bridge::mir::LocalDecls">LocalDecls</a>,
 ) -&gt; <a class="type" href="queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;</h4></section></div></details><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../trait.impl/flux_middle/trait.PlaceExt.js" data-ignore-extern-crates="flux_rustc_bridge" async></script></section></div></main></body></html>

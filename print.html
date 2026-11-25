@@ -179,7 +179,7 @@ and have them be <em>verified</em> at compile time.</p>
 logical assertions describing additional correctness requirements
 that are checked during compilation, thereby eliminating various
 classes of run-time problems.</p>
-<p>You can try it on the <a href="https://flux.goto.ucsd.edu/"><strong>online playground</strong></a>.</p>
+<p>You can try it on the <a href="https://flux.dcc.uchile.cl/"><strong>online playground</strong></a>.</p>
 <p>Better still, read the <a href="./tutorial/01-refinements.html"><strong>interactive tutorial</strong></a>,
 to learn how you can use Flux on your Rust code.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="installing-and-running-flux"><a class="header" href="#installing-and-running-flux">Installing and Running Flux</a></h1>
@@ -593,7 +593,7 @@ happily coexist with imperative code.</p>
 <pre><pre class="playground"><code class="language-rust  editable  hidden">#![allow(unused)]
 extern crate flux_rs;
 use flux_rs::attrs::*;</code></pre></pre>
-<p><a href="https://flux.goto.ucsd.edu/?example=ownership.rs">Online demo</a></p>
+<p><a href="https://flux.dcc.uchile.cl/?example=ownership.rs">Online demo</a></p>
 <p><a href="tutorial/./01-introducing-flux.html">Previously</a> we saw how to refine basic Rust
 types like <code>i32</code> and <code>bool</code> with <em>indices</em> and <em>constraints</em> to
 constrain the set of values described by those types. For instance, we
@@ -1360,7 +1360,7 @@ fn assert(b: bool) {
         panic!("assertion failed");
     }
 }</code></pre></pre>
-<p><a href="https://flux.goto.ucsd.edu/index.html#?demo=vectors.rs">Online demo</a></p>
+<p><a href="https://flux.dcc.uchile.cl/index.html#?demo=vectors.rs">Online demo</a></p>
 <p>While <code>rustc</code> has a keen eye for spotting nasty bugs at
 compile time, it is not omniscient. We've all groaned in
 dismay at seeing deployed code crash with messages like</p>
@@ -1714,7 +1714,7 @@ simple ones, as we will see when we use <code>RVec</code> to implment
 <p>Why not use an iterator? We'll get there in <a href="tutorial/./07-traits.html">due course</a>! <a href="#fr-1-1">↩</a></p>
 </li>
 </ol><div style="break-before: page; page-break-before: always;"></div><h1 id="const-generics"><a class="header" href="#const-generics">Const Generics</a></h1>
-<p><a href="https://flux.goto.ucsd.edu/index.html#?demo=arrays.rs">Online demo</a></p>
+<p><a href="https://flux.dcc.uchile.cl/index.html#?demo=arrays.rs">Online demo</a></p>
 <p>Rust has a built-in notion of <em>arrays</em> : collections of objects of
 the same type <code>T</code> whose size is known at compile time. The fact that
 the sizes are known allows them to be allocated contiguously in memory,
