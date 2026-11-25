@@ -47,9 +47,9 @@ Next, run the following to build and install `flux` binaries
 cargo xtask install
 ```
 
-This will install two binaries `flux` and `cargo-flux` in your cargo home. These two binaries should be used
-respectively to run Flux on either a single file or on a project using cargo. The installation process will
-also copy the Flux sysroot (the driver and precompiled libraries) to `$HOME/.flux/sysroot`.
+This will install the Flux sysroot (the binaries and precompiled libraries) to `$HOME/.flux/sysroot` and
+link two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`). These two binaries
+should be used respectively to run Flux on either a single file or on a project using cargo.
 
 ## Flux Home
 
@@ -58,10 +58,11 @@ The Flux home is the directory `$HOME/.flux`. Its location can be changed by set
 
 - `config.toml` — Your personal [configuration](../reference/config.md), which applies to every
   invocation of `cargo flux`. It is never modified by Flux.
-- `sysroot/` — The Flux sysroot, i.e., `flux-driver` and the precompiled Flux libraries. It is
-  managed by `cargo xtask install` and `cargo xtask uninstall`, which replace or remove the whole
-  directory, so it is safe to delete. Use the `FLUX_SYSROOT` environment variable to use a sysroot
-  in a different location.
+- `sysroot/` — The Flux sysroot. It contains the binaries (`bin/flux`, `bin/cargo-flux` and
+  `bin/flux-driver`), the precompiled Flux libraries (`lib/`), and a manifest (`sysroot.toml`)
+  recording the Flux version and the Rust toolchain it was built with. It is managed by
+  `cargo xtask install` and `cargo xtask uninstall`, which replace or remove the whole directory.
+  Use the `FLUX_SYSROOT` environment variable to use a sysroot in a different location.
 
 ## Running on a package: `cargo-flux`
 

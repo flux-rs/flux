@@ -71,7 +71,7 @@ pub struct FluxVersion {
     pub date: String,
 }
 
-/// File names are relative to the sysroot directory.
+/// File names are relative to the sysroot's `lib` directory.
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct SysrootCrate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -111,7 +111,7 @@ impl SysrootManifest {
                 .flatten()
             {
                 args.push("--extern".to_string());
-                args.push(format!("{name}={}", sysroot.join(file).display()));
+                args.push(format!("{name}={}", lib_dir(sysroot).join(file).display()));
             }
         }
         args
@@ -123,30 +123,49 @@ impl SysrootManifest {
             .crates
             .iter()
             .filter(|(_, krate)| krate.extern_spec)
-            .filter_map(|(name, krate)| Some((name.clone(), sysroot.join(krate.rmeta.as_ref()?))))
+            .filter_map(|(name, krate)| {
+                Some((name.clone(), lib_dir(sysroot).join(krate.rmeta.as_ref()?)))
+            })
             .collect()
     }
 }
 
+/// The sysroot is a self-contained directory with the following layout:
+///
+/// ```text
+/// sysroot.toml                     the manifest, see [`SysrootManifest`]
+/// bin/{cargo-flux,flux,flux-driver}
+/// lib/                             precompiled Flux libraries
+/// ```
 pub const SYSROOT_MANIFEST: &str = "sysroot.toml";
+
+/// Returns the directory of the sysroot holding the binaries.
+pub fn bin_dir(sysroot: &Path) -> PathBuf {
+    sysroot.join("bin")
+}
+
+/// Returns the directory of the sysroot holding the precompiled libraries.
+pub fn lib_dir(sysroot: &Path) -> PathBuf {
+    sysroot.join("lib")
+}
+
+/// Returns the path of the binary `name` in the sysroot.
+pub fn bin_path(sysroot: &Path, name: &str) -> PathBuf {
+    bin_dir(sysroot).join(format!("{name}{}", env::consts::EXE_SUFFIX))
+}
 
 /// Name of the environment variable used to override the Flux sysroot location.
 ///
-/// The sysroot is a directory containing `flux-driver` and precompiled Flux libraries. When unset,
-/// the default is `$FLUX_HOME/sysroot` (managed by `cargo x install`). Set this variable to redirect
-/// `flux` and `cargo-flux` to a different location, e.g., a custom or non-default install path.
+/// When unset, the default is `$FLUX_HOME/sysroot` (managed by `cargo x install`). Set this variable
+/// to redirect `flux` and `cargo-flux` to a different sysroot.
 ///
 /// During development, `cargo x build-sysroot` populates `<workspace-root>/sysroot/`. The test
 /// runner (`cargo x test`) automatically sets `FLUX_SYSROOT` to that directory so tests use the
 /// locally built artifacts instead of the installed ones.
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
 
-/// Returns the path to the active Flux sysroot.
-///
-/// Both `cargo-flux` and `flux` call this at startup:
-/// - `cargo-flux` uses it to locate `flux-driver` and sets `RUSTC=<driver>` before invoking cargo.
-/// - `flux` uses it to locate `flux-driver` and passes `-L <sysroot>` so rustc can find the
-///   precompiled extern crates (`flux_rs`, `flux_attrs`).
+/// Returns the path to the active Flux sysroot, i.e., [`FLUX_SYSROOT`] or `$FLUX_HOME/sysroot` if
+/// not set.
 pub fn flux_sysroot_dir() -> PathBuf {
     env::var_os(FLUX_SYSROOT).map_or_else(default_flux_sysroot_dir, PathBuf::from)
 }

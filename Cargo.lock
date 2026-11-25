@@ -640,6 +640,9 @@ dependencies = [
 [[package]]
 name = "flux-dev"
 version = "0.1.0"
+dependencies = [
+ "flux-sysroot",
+]
 
 [[package]]
 name = "flux-driver"
@@ -2564,6 +2567,7 @@ dependencies = [
  "cargo_metadata",
  "flux-dev",
  "flux-sysroot",
+ "home",
  "rustix",
  "serde",
  "toml",

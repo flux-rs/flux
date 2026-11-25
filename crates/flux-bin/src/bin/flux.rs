@@ -4,7 +4,7 @@ use std::{env, process::Command};
 
 use anyhow::Result;
 use flux_bin::utils::{
-    LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot,
+    LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot, lib_dir,
     prepend_path_to_env_var, print_version_and_exit, read_sysroot_manifest,
 };
 use flux_sysroot::SysrootManifest;
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
         .args(env::args().skip(1))
         // Transitive deps ignore `--extern`, so they still need a search path.
         .arg("-L")
-        .arg(&flux_sysroot)
+        .arg(lib_dir(&flux_sysroot))
         .arg(format!("-Fsysroot={}", flux_sysroot.display()))
         .args(SysrootManifest::extern_args(&flux_sysroot))
         .arg("-Fverify=on")

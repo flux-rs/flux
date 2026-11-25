@@ -17,8 +17,8 @@ use cargo_metadata::{
 };
 use flux_dev::Suite;
 use flux_sysroot::{
-    default_flux_sysroot_dir, parse_toolchain_file, FluxVersion, SysrootCrate, SysrootManifest,
-    FLUX_SYSROOT, SYSROOT_MANIFEST,
+    bin_dir, bin_path, default_flux_sysroot_dir, lib_dir, parse_toolchain_file, FluxVersion,
+    SysrootCrate, SysrootManifest, FLUX_SYSROOT, SYSROOT_MANIFEST,
 };
 
 xflags::xflags! {
@@ -55,7 +55,8 @@ xflags::xflags! {
             /// Input file
             required input: PathBuf
         }
-        /// Install Flux binaries to `~/.cargo/bin` and precompiled libraries and driver to `~/.flux/sysroot`
+        /// Install the Flux sysroot (binaries and precompiled libraries) to `~/.flux/sysroot` and link
+        /// `flux` and `cargo-flux` from `~/.cargo/bin`
         cmd install {
             /// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
             optional --profile profile: Profile
@@ -131,6 +132,7 @@ fn main() -> anyhow::Result<()> {
             let config = SysrootConfig {
                 profile: Profile::Dev,
                 rust_fixpoint: cmd.rust_fixpoint,
+                offline: cmd.offline,
                 dst: local_sysroot_dir()?,
                 build_libs: BuildLibs { force: true, libs: FluxLib::ALL },
             };
@@ -175,6 +177,7 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
         let config = SysrootConfig {
             profile: Profile::Dev,
             rust_fixpoint,
+            offline: false,
             dst: dst.clone(),
             build_libs: BuildLibs { force: false, libs },
         };
@@ -190,6 +193,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
+        offline: false,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
     };
@@ -344,6 +348,7 @@ fn run_inner(
     let config = SysrootConfig {
         profile: Profile::Dev,
         rust_fixpoint,
+        offline: false,
         dst: local_sysroot_dir()?,
         build_libs,
     };
@@ -366,27 +371,80 @@ fn install(args: &Install, offline: bool, rust_fixpoint: bool) -> anyhow::Result
     let config = SysrootConfig {
         profile: args.profile(),
         rust_fixpoint,
+        offline,
         dst: default_flux_sysroot_dir(),
         build_libs: BuildLibs { force: false, libs },
     };
     install_sysroot(&config)?;
-    // Pass the toolchain explicitly, otherwise `cargo install` warns that the default toolchain
-    // was implicitly overridden.
-    Command::new("cargo")
-        .args_if_some(env::var("RUSTUP_TOOLCHAIN").ok(), |toolchain| [format!("+{toolchain}")])
-        .args(["install", "--path", "crates/flux-bin", "--force"])
-        .args_if(offline, ["--offline"])
-        .run()
+    link_binaries(&config.dst)
 }
 
 fn uninstall() -> anyhow::Result<()> {
-    Command::new("cargo")
-        .args(["uninstall", "-p", "flux-bin"])
-        .run()?;
     let sysroot = default_flux_sysroot_dir();
+    for link in binary_links()? {
+        if is_link_to(&link, &sysroot) {
+            eprintln!("$ rm {}", link.display());
+            remove_path(&link)?;
+        }
+    }
     eprintln!("$ rm -rf {}", sysroot.display());
     remove_path(&sysroot)?;
     Ok(())
+}
+
+/// Binaries in the sysroot that are linked from cargo's `bin` directory, which is where cargo looks
+/// for external subcommands and is usually on the `PATH`.
+const LINKED_BINARIES: &[&str] = &["cargo-flux", "flux"];
+
+/// Returns the paths in cargo's `bin` directory the [`LINKED_BINARIES`] are linked from.
+fn binary_links() -> anyhow::Result<Vec<PathBuf>> {
+    let cargo_bin = home::cargo_home()?.join("bin");
+    Ok(LINKED_BINARIES
+        .iter()
+        .map(|name| cargo_bin.join(format!("{name}{}", env::consts::EXE_SUFFIX)))
+        .collect())
+}
+
+/// Links the [`LINKED_BINARIES`] in `sysroot` from cargo's `bin` directory, replacing whatever is
+/// there. The links point to `sysroot` itself rather than to the directory it resolves to, so they
+/// keep working when `sysroot` is replaced. Windows doesn't have unprivileged symlinks, so there
+/// the binaries are copied instead.
+fn link_binaries(sysroot: &Path) -> anyhow::Result<()> {
+    for (name, link) in LINKED_BINARIES.iter().zip(binary_links()?) {
+        if let Some(parent) = link.parent() {
+            create_dir(parent)?;
+        }
+        // Create the link next to its final location and rename it there, so it's replaced
+        // atomically.
+        let tmp = sibling_path(&link, "tmp");
+        remove_path(&tmp)?;
+        symlink_or_copy(&bin_path(sysroot, name), &tmp)?;
+        rename(&tmp, &link)?;
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn symlink_or_copy(target: &Path, link: &Path) -> anyhow::Result<()> {
+    eprintln!("$ ln -s {} {}", target.display(), link.display());
+    std::os::unix::fs::symlink(target, link).map_err(|err| {
+        anyhow!("failed to link `{}` to `{}`: {err}", link.display(), target.display())
+    })
+}
+
+#[cfg(not(unix))]
+fn symlink_or_copy(target: &Path, link: &Path) -> anyhow::Result<()> {
+    copy_file(target, link)
+}
+
+/// Whether `link` was created by [`link_binaries`] for `sysroot`. On Windows, where the binaries
+/// are copied, any file is assumed to be.
+fn is_link_to(link: &Path, sysroot: &Path) -> bool {
+    if cfg!(unix) {
+        fs::read_link(link).is_ok_and(|target| target.starts_with(bin_dir(sysroot)))
+    } else {
+        link.is_file()
+    }
 }
 
 fn doc(_args: Doc) -> anyhow::Result<()> {
@@ -408,10 +466,16 @@ fn blick(args: &Blick, offline: bool) -> anyhow::Result<()> {
         .run()
 }
 
-fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool) -> anyhow::Result<Utf8PathBuf> {
+fn build_binary(
+    bin: &str,
+    profile: Profile,
+    rust_fixpoint: bool,
+    offline: bool,
+) -> anyhow::Result<Utf8PathBuf> {
     Command::new("cargo")
         .args(["build", "--bin", bin, "--profile", profile.as_str()])
         .args_if(rust_fixpoint, ["--features", "rust-fixpoint"])
+        .args_if(offline, ["--offline"])
         .run_with_cargo_metadata()?
         .into_iter()
         .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
@@ -424,6 +488,8 @@ struct SysrootConfig {
     profile: Profile,
     /// Whether rust-fixpoint should be enabled to build `flux-driver`
     rust_fixpoint: bool,
+    /// Whether to pass `--offline` when building the binaries
+    offline: bool,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
     build_libs: BuildLibs,
@@ -489,10 +555,12 @@ impl FluxLib {
 fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     let staging = sibling_path(&config.dst, "new");
     remove_path(&staging)?;
-    create_dir(&staging)?;
+    create_dir(&bin_dir(&staging))?;
+    create_dir(&lib_dir(&staging))?;
 
-    let flux_driver = build_binary("flux-driver", config.profile, config.rust_fixpoint)?;
-    copy_file(&flux_driver, &staging)?;
+    let flux_driver =
+        build_binary("flux-driver", config.profile, config.rust_fixpoint, config.offline)?;
+    copy_file(&flux_driver, bin_path(&staging, "flux-driver"))?;
 
     // The libraries are built with `cargo-flux` using the staging sysroot, which needs a valid
     // manifest to find the toolchain. Write one without crates now and add them once built.
@@ -503,7 +571,11 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     };
     write_sysroot_toml(&manifest, &staging)?;
 
-    let cargo_flux = build_binary("cargo-flux", config.profile, config.rust_fixpoint)?;
+    let cargo_flux =
+        build_binary("cargo-flux", config.profile, config.rust_fixpoint, config.offline)?;
+    copy_file(&cargo_flux, bin_path(&staging, "cargo-flux"))?;
+    let flux = build_binary("flux", config.profile, config.rust_fixpoint, config.offline)?;
+    copy_file(&flux, bin_path(&staging, "flux"))?;
 
     if config.build_libs.force {
         Command::new(&cargo_flux)
@@ -522,7 +594,7 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
         )
         .env(FLUX_SYSROOT, &staging)
         .run_with_cargo_metadata()?;
-    manifest.crates = copy_artifacts(&artifacts, &staging)?;
+    manifest.crates = copy_artifacts(&artifacts, &lib_dir(&staging))?;
     write_sysroot_toml(&manifest, &staging)?;
 
     replace_dir(&staging, &config.dst)?;
@@ -606,7 +678,7 @@ fn git(args: &[&str]) -> String {
 
 fn copy_artifacts(
     artifacts: &[Artifact],
-    sysroot: &Path,
+    lib_dir: &Path,
 ) -> anyhow::Result<BTreeMap<String, SysrootCrate>> {
     let mut crates = BTreeMap::<String, SysrootCrate>::new();
     for artifact in artifacts {
@@ -616,7 +688,7 @@ fn copy_artifacts(
         entry.extern_spec = lib.is_std_extern_spec();
 
         for filename in &artifact.filenames {
-            copy_artifact(artifact, filename, sysroot, entry)?;
+            copy_artifact(artifact, filename, lib_dir, entry)?;
         }
     }
     Ok(crates)
@@ -835,8 +907,9 @@ impl CommandExt for Command {
     }
 }
 
+/// Removes the file or directory at `path`. A symlink is removed itself, not what it points to.
 fn remove_path(path: &Path) -> anyhow::Result<()> {
-    match path.metadata() {
+    match path.symlink_metadata() {
         Ok(meta) => {
             if meta.is_dir() { remove_dir_all(path) } else { fs::remove_file(path) }
                 .map_err(|err| anyhow!("failed to remove path `{}`: {err}", path.display()))

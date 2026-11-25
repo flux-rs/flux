@@ -118,8 +118,9 @@ pub fn sysroot() -> Option<PathBuf> {
     if let Some(p) = FLAGS.sysroot.as_deref() {
         Some(p.to_path_buf())
     } else {
+        // The driver is installed in `<sysroot>/bin`
         let exe = std::env::current_exe().ok()?;
-        exe.parent().map(|p| p.to_path_buf())
+        exe.parent()?.parent().map(|p| p.to_path_buf())
     }
 }
 

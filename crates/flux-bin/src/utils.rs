@@ -15,22 +15,15 @@ pub const LIB_PATH: &str = "LD_LIBRARY_PATH";
 pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 
 use flux_sysroot::SysrootManifest;
-pub use flux_sysroot::{FLUX_SYSROOT, flux_sysroot_dir};
+pub use flux_sysroot::{FLUX_SYSROOT, flux_sysroot_dir, lib_dir};
 
 pub const EXIT_ERR: i32 = -1;
 
 const FLUX_DRIVER: &str = "FLUX_DRIVER";
 
 pub fn get_flux_driver_path(sysroot: &Path) -> Result<PathBuf> {
-    let path = if let Some(path) = env::var_os(FLUX_DRIVER) {
-        PathBuf::from(path)
-    } else {
-        let mut path = sysroot.join("flux-driver");
-        if cfg!(target_os = "windows") {
-            path.set_extension("exe");
-        }
-        path
-    };
+    let path = env::var_os(FLUX_DRIVER)
+        .map_or_else(|| flux_sysroot::bin_path(sysroot, "flux-driver"), PathBuf::from);
     if !path.is_file() {
         return Err(anyhow!("path to flux-driver {:?} does not exist or is not a file", path));
     }

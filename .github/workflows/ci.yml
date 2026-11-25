@@ -186,12 +186,9 @@ jobs:
       - name: Build and install flux sysroot
         run: cargo x install
 
-      - name: Copy flux binary into sysroot directory
-        run: cp ~/.cargo/bin/flux ~/.flux/sysroot/flux
-
       # The solvers ship inside the sysroot so the server runs exactly the
       # versions flux was tested with; the playground service puts
-      # ~/.flux/sysroot/bin on its PATH.
+      # ~/.flux/sysroot/bin, which also has flux, on its PATH.
       - name: Install fixpoint
         uses: ./.github/actions/install-fixpoint
         env:
@@ -204,7 +201,6 @@ jobs:
 
       - name: Copy fixpoint and z3 into sysroot bin directory
         run: |
-          mkdir -p ~/.flux/sysroot/bin
           cp "$(readlink -f "$(command -v fixpoint)")" ~/.flux/sysroot/bin/fixpoint
           cp "$(readlink -f "$(command -v z3)")" ~/.flux/sysroot/bin/z3
 

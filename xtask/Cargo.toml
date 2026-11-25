@@ -10,6 +10,7 @@ anyhow.workspace = true
 cargo_metadata.workspace = true
 flux-dev.workspace = true
 flux-sysroot.workspace = true
+home.workspace = true
 serde.workspace = true
 toml.workspace = true
 walkdir.workspace = true
