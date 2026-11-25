@@ -16,7 +16,8 @@ use cargo_metadata::{
 };
 use flux_dev::Suite;
 use flux_sysroot::{
-    default_flux_sysroot_dir, SysrootCrate, SysrootManifest, FLUX_SYSROOT, SYSROOT_MANIFEST,
+    default_flux_sysroot_dir, FluxVersion, SysrootCrate, SysrootManifest, FLUX_SYSROOT,
+    SYSROOT_MANIFEST,
 };
 
 xflags::xflags! {
@@ -508,9 +509,32 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
         )
         .env(FLUX_SYSROOT, &config.dst)
         .run_with_cargo_metadata()?;
-    let manifest = copy_artifacts(&artifacts, &config.dst)?;
+    let mut manifest = copy_artifacts(&artifacts, &config.dst)?;
+    manifest.version = Some(flux_version());
     write_sysroot_toml(&manifest, &config.dst)?;
     Ok(flux_driver)
+}
+
+/// Version of the Flux sources, read from git when the sysroot is built.
+fn flux_version() -> FluxVersion {
+    FluxVersion {
+        sha: git(&["describe", "--always", "--dirty=*"]),
+        sha_full: git(&["describe", "--always", "--abbrev=0", "--dirty=*"]),
+        date: git(&["show", "-s", "--format=%cd", "--date=format:%Y-%m-%d", "HEAD"]),
+    }
+}
+
+/// Runs git in the workspace root and returns its trimmed output, or `unknown` if it fails.
+fn git(args: &[&str]) -> String {
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    Command::new("git")
+        .args(args)
+        .current_dir(workspace_root)
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map_or_else(|| "unknown".to_string(), |stdout| stdout.trim().to_string())
 }
 
 fn copy_artifacts(artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<SysrootManifest> {
@@ -596,9 +620,6 @@ fn sysroot_file_name(artifact: &Artifact, filename: &Utf8Path) -> anyhow::Result
 }
 
 fn write_sysroot_toml(manifest: &SysrootManifest, sysroot: &Path) -> anyhow::Result<()> {
-    if manifest.crates.is_empty() {
-        return Ok(());
-    }
     let content = toml::to_string(manifest)?;
     let path = sysroot.join(SYSROOT_MANIFEST);
     eprintln!("$ write {}", path.display());

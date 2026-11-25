@@ -14,8 +14,23 @@ use serde::{Deserialize, Serialize};
 /// crates by path instead of by name.
 #[derive(Serialize, Deserialize, Default)]
 pub struct SysrootManifest {
+    /// Version of Flux the sysroot was built from. `None` for sysroots created before this field
+    /// was added.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<FluxVersion>,
     #[serde(default)]
     pub crates: BTreeMap<String, SysrootCrate>,
+}
+
+/// Git version of the Flux sources a sysroot was built from, recorded when the sysroot is built.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct FluxVersion {
+    /// Abbreviated commit hash
+    pub sha: String,
+    /// Full commit hash
+    pub sha_full: String,
+    /// Commit date, formatted as `YYYY-MM-DD`
+    pub date: String,
 }
 
 /// File names are relative to the sysroot directory.
@@ -35,7 +50,8 @@ pub struct SysrootCrate {
 }
 
 impl SysrootManifest {
-    fn read(sysroot: &Path) -> Option<Self> {
+    /// Reads the manifest of `sysroot`. Returns `None` if it is missing or cannot be parsed.
+    pub fn read(sysroot: &Path) -> Option<Self> {
         let content = std::fs::read_to_string(sysroot.join(SYSROOT_MANIFEST)).ok()?;
         toml::from_str(&content).ok()
     }

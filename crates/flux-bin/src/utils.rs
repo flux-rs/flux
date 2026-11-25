@@ -15,6 +15,7 @@ pub const LIB_PATH: &str = "LD_LIBRARY_PATH";
 #[cfg(target_os = "macos")]
 pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";
 
+use flux_sysroot::SysrootManifest;
 pub use flux_sysroot::{FLUX_SYSROOT, flux_sysroot_dir};
 
 pub const EXIT_ERR: i32 = -1;
@@ -99,19 +100,20 @@ fn bytes_to_pathbuf(input: Vec<u8>) -> Result<PathBuf> {
     Ok(PathBuf::from(String::from_utf8(input)?.trim()))
 }
 
-pub fn get_version() -> &'static str {
-    concat!(env!("GIT_SHA"), " (", env!("GIT_DATE"), ")")
-}
-
-pub fn get_version_full() -> &'static str {
-    concat!(env!("GIT_SHA_FULL"), " (", env!("GIT_DATE"), ")")
-}
-
+/// Prints the version of the active Flux sysroot. The version is recorded in the sysroot manifest when it
+/// is built.
 pub fn print_version_and_exit(program_name: &str, verbose: bool) -> ! {
+    let sysroot = flux_sysroot_dir();
+    let version = SysrootManifest::read(&sysroot).and_then(|manifest| manifest.version);
+    match version {
+        Some(version) if verbose => {
+            println!("{program_name} {} ({})", version.sha_full, version.date);
+        }
+        Some(version) => println!("{program_name} {} ({})", version.sha, version.date),
+        None => println!("{program_name} (unknown version)"),
+    }
     if verbose {
-        println!("{} {}", program_name, get_version_full());
-    } else {
-        println!("{} {}", program_name, get_version());
+        println!("sysroot: {}", sysroot.display());
     }
     std::process::exit(0)
 }
