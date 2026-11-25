@@ -1,7 +1,12 @@
-//! `cargo flux self`: installing and uninstalling Flux from a prebuilt release.
+//! `cargo flux self`: installing, updating, and uninstalling Flux from prebuilt releases.
+//!
+//! Releases are published by the `nightly` workflow: the moving `nightly` release, and dated
+//! `nightly-yyyy-mm-dd` copies. Each has a `manifest.json`, see [`ReleaseManifest`], and one
+//! `flux-<target>.tar.gz` archive per target, holding a `sysroot` directory.
 
 use std::{
-    env, fs,
+    collections::BTreeMap,
+    env, fs, io,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -10,16 +15,19 @@ use anyhow::anyhow;
 use flux_sysroot::{
     FLUX_SYSROOT, SYSROOT_MANIFEST, SysrootManifest, bin_path, default_flux_sysroot_dir,
     install::{
-        self, BundledSolver, FIXPOINT, Z3, copy_dir, create_dir, link_binaries, remove_path,
-        replace_dir, sibling_path,
+        self, BundledSolver, FIXPOINT, Z3, copy_dir, create_dir, download, link_binaries,
+        remove_path, replace_dir, sibling_path,
     },
 };
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use crate::cargo_flux_opts::SelfCommand;
 
 pub fn run(command: SelfCommand) -> anyhow::Result<()> {
     match command {
         SelfCommand::Install => install(),
+        SelfCommand::Update { to } => update(to.as_deref().unwrap_or(NIGHTLY)),
         SelfCommand::Uninstall => uninstall(),
     }
 }
@@ -62,6 +70,113 @@ fn install() -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+/// Where the releases are downloaded from, followed by `/<tag>/<file>`.
+const RELEASES_URL: &str = "https://github.com/flux-rs/flux/releases/download";
+
+/// The release that always points to the latest build.
+const NIGHTLY: &str = "nightly";
+
+/// The `manifest.json` of a release.
+#[derive(Deserialize)]
+struct ReleaseManifest {
+    /// Commit the release was built from.
+    commit: String,
+    /// The archive of each target.
+    targets: BTreeMap<String, ReleaseArchive>,
+}
+
+#[derive(Deserialize)]
+struct ReleaseArchive {
+    url: String,
+    sha256: String,
+}
+
+/// The target of the release archives for this machine, if there are any. Keep in sync with the
+/// `build` job of `.github/workflows/nightly.yml`.
+fn release_target() -> anyhow::Result<&'static str> {
+    match (env::consts::OS, env::consts::ARCH) {
+        ("linux", "x86_64") => Ok("x86_64-unknown-linux-gnu"),
+        ("macos", "aarch64") => Ok("aarch64-apple-darwin"),
+        ("windows", "x86_64") => Ok("x86_64-pc-windows-msvc"),
+        (os, arch) => Err(anyhow!("there are no Flux releases for {arch}-{os}")),
+    }
+}
+
+/// Installs the release `tag`, unless it's already installed. The release's archive is extracted
+/// next to the default sysroot, and the `cargo-flux` in it installs it with `cargo flux self
+/// install`, so the installation is always done by the version being installed.
+fn update(tag: &str) -> anyhow::Result<()> {
+    let target = release_target()?;
+    let sysroot = default_flux_sysroot_dir();
+    let tmp = sibling_path(&sysroot, "download");
+    remove_path(&tmp)?;
+    create_dir(&tmp)?;
+    let result = download_and_install(tag, target, &sysroot, &tmp);
+    remove_path(&tmp)?;
+    result
+}
+
+fn download_and_install(tag: &str, target: &str, sysroot: &Path, tmp: &Path) -> anyhow::Result<()> {
+    let manifest_path = tmp.join("manifest.json");
+    download(&format!("{RELEASES_URL}/{tag}/manifest.json"), &manifest_path).map_err(|err| {
+        anyhow!("{err}\nnote: the releases are listed in https://github.com/flux-rs/flux/releases")
+    })?;
+    let manifest: ReleaseManifest = serde_json::from_str(&fs::read_to_string(&manifest_path)?)
+        .map_err(|err| anyhow!("invalid manifest of the release `{tag}`: {err}"))?;
+
+    if let Ok(installed) = SysrootManifest::read(sysroot)
+        && installed.version.sha_full == manifest.commit
+    {
+        eprintln!(
+            "Flux {} ({}) is already installed",
+            installed.version.sha, installed.version.date
+        );
+        return Ok(());
+    }
+
+    let archive = manifest
+        .targets
+        .get(target)
+        .ok_or_else(|| anyhow!("the release `{tag}` has no archive for `{target}`"))?;
+    let archive_path = tmp.join(format!("flux-{target}.tar.gz"));
+    download(&archive.url, &archive_path)?;
+    let sha256 = sha256(&archive_path)?;
+    if !sha256.eq_ignore_ascii_case(&archive.sha256) {
+        return Err(anyhow!(
+            "the checksum of `{}` doesn't match the release manifest: expected {}, got {sha256}",
+            archive.url,
+            archive.sha256
+        ));
+    }
+
+    eprintln!("$ tar -xzf {} -C {}", archive_path.display(), tmp.display());
+    tar::Archive::new(flate2::read::GzDecoder::new(fs::File::open(&archive_path)?))
+        .unpack(tmp)
+        .map_err(|err| anyhow!("failed to extract `{}`: {err}", archive_path.display()))?;
+
+    let cargo_flux = bin_path(&tmp.join("sysroot"), "cargo-flux");
+    eprintln!("$ {} flux self install", cargo_flux.display());
+    let status = Command::new(&cargo_flux)
+        .args(["flux", "self", "install"])
+        .status()
+        .map_err(|err| anyhow!("failed to run `{}`: {err}", cargo_flux.display()))?;
+    if !status.success() {
+        return Err(anyhow!("failed to install the release `{tag}`"));
+    }
+    Ok(())
+}
+
+/// The SHA-256 checksum of the file `path`, in hex.
+fn sha256(path: &Path) -> anyhow::Result<String> {
+    let mut hasher = Sha256::new();
+    io::copy(&mut fs::File::open(path)?, &mut hasher)?;
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 /// Removes the default sysroot and the links to its binaries. The toolchain and the configuration

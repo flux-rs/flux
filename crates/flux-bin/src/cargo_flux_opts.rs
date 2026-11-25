@@ -47,6 +47,12 @@ pub enum SelfCommand {
     /// Used by the install script.
     #[command(hide = true)]
     Install,
+    /// Update Flux to the latest nightly release
+    Update {
+        /// Install the given release instead, e.g., `nightly-2026-11-20`
+        #[arg(long, value_name = "TAG")]
+        to: Option<String>,
+    },
     /// Uninstall Flux
     Uninstall,
 }
