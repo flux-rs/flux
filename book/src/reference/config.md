@@ -43,7 +43,12 @@ enabled = true                 # enable fixpoint query caching
 dir = "flux-cache"             # where cache files are saved
 
 [fixpoint]
+path = "fixpoint"              # the fixpoint executable
 timeout = 30                   # timeout in seconds for each fixpoint query
+
+[smt]
+z3 = "z3"                      # the z3 executable
+cvc5 = "cvc5"                  # the cvc5 executable
 
 [diagnostics]
 verbose = false                # more detailed error messages
@@ -80,6 +85,10 @@ the manifest.
 Relative paths in a configuration file are resolved against the parent of the directory containing
 the file. For example, `cache.dir = "flux-cache"` in `/my/project/.flux/config.toml` resolves to
 `/my/project/flux-cache`.
+
+Paths to executables, i.e., [`fixpoint.path`](#fixpointpath), [`smt.z3`](#smtz3), and
+[`smt.cvc5`](#smtcvc5), follow the same rule as cargo's: a name without path separators, e.g.,
+`z3`, is looked up in `PATH`, and any other relative path is resolved as above.
 
 ## Package overrides
 
@@ -162,6 +171,14 @@ The directory where cache files are saved.
 
 ### `[fixpoint]`
 
+#### `fixpoint.path`
+
+- Type: string (executable)
+- Default: `<sysroot>/bin/fixpoint` if it exists, otherwise `fixpoint` in `PATH`
+- Flag: `-Ffixpoint`
+
+The fixpoint executable. See [config-relative paths](#config-relative-paths) for how it is resolved.
+
 #### `fixpoint.timeout`
 
 - Type: integer (seconds)
@@ -170,6 +187,26 @@ The directory where cache files are saved.
 
 Timeout for each fixpoint query. If a query doesn't finish in time, fixpoint is killed and an error
 is reported for the item being checked.
+
+### `[smt]`
+
+#### `smt.z3`
+
+- Type: string (executable)
+- Default: `<sysroot>/bin/z3` if it exists, otherwise `z3` in `PATH`
+- Flag: `-Fz3`
+
+The z3 executable. See [config-relative paths](#config-relative-paths) for how it is resolved.
+Setting it requires a version of fixpoint that supports `--solver-path`.
+
+#### `smt.cvc5`
+
+- Type: string (executable)
+- Default: `<sysroot>/bin/cvc5` if it exists, otherwise `cvc5` in `PATH`
+- Flag: `-Fcvc5`
+
+The cvc5 executable. See [config-relative paths](#config-relative-paths) for how it is resolved.
+Setting it requires a version of fixpoint that supports `--solver-path`.
 
 ### `[diagnostics]`
 

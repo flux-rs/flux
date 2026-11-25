@@ -83,6 +83,16 @@ impl Located<Utf8PathBuf> {
     pub fn resolve(&self) -> Utf8PathBuf {
         self.location.base().join(&self.value)
     }
+
+    /// Resolves the path of an executable like cargo does: a name without path separators is kept
+    /// as is, to be looked up in `PATH`, and any other path is resolved like [`Located::resolve`].
+    pub fn resolve_executable(&self) -> Utf8PathBuf {
+        if self.value.as_str().contains(std::path::is_separator) {
+            self.resolve()
+        } else {
+            self.value.clone()
+        }
+    }
 }
 
 /// Name and fields of the struct through which a [`ConfigValue`] hands a value and its location to
