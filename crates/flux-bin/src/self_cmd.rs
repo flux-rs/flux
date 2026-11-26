@@ -15,8 +15,8 @@ use anyhow::anyhow;
 use flux_sysroot::{
     FLUX_SYSROOT, SYSROOT_MANIFEST, SysrootManifest, bin_path, default_flux_sysroot_dir,
     install::{
-        self, BundledSolver, FIXPOINT, Z3, copy_dir, create_dir, download, link_binaries,
-        remove_path, replace_dir, sibling_path,
+        self, copy_dir, create_dir, download, link_binaries, remove_broken_solvers, remove_path,
+        replace_dir, sibling_path,
     },
 };
 use serde::Deserialize;
@@ -51,7 +51,7 @@ fn install() -> anyhow::Result<()> {
         let staging = sibling_path(&dst, "new");
         remove_path(&staging)?;
         copy_dir(&src, &staging)?;
-        remove_broken_solvers(&staging)?;
+        remove_broken_solvers(&staging, false)?;
         replace_dir(&staging, &dst)?;
     }
     link_binaries(&dst)?;
@@ -237,26 +237,6 @@ fn install_toolchain(manifest: &SysrootManifest) -> anyhow::Result<()> {
     })?;
     if !status.success() {
         return Err(anyhow!("failed to install the toolchain `{}`", manifest.toolchain));
-    }
-    Ok(())
-}
-
-/// Removes the solvers bundled in `sysroot` that don't run on this machine, e.g., on an older OS
-/// than the release was built for, so Flux looks them up in `PATH` instead.
-fn remove_broken_solvers(sysroot: &Path) -> anyhow::Result<()> {
-    let is_bundled = |solver: &BundledSolver| bin_path(sysroot, solver.name).exists();
-    let remove = |solver: &BundledSolver, reason: &str| {
-        eprintln!("warning: {reason}, Flux will look `{}` up in PATH", solver.name);
-        remove_path(&bin_path(sysroot, solver.name))
-    };
-    if is_bundled(&FIXPOINT) && !FIXPOINT.runs(sysroot) {
-        remove(&FIXPOINT, "the bundled `fixpoint` doesn't run on this machine")?;
-        // z3 is only bundled to be passed to the bundled fixpoint.
-        if is_bundled(&Z3) {
-            remove(&Z3, "the bundled `z3` is only used with the bundled `fixpoint`")?;
-        }
-    } else if is_bundled(&Z3) && !Z3.runs(sysroot) {
-        remove(&Z3, "the bundled `z3` doesn't run on this machine")?;
     }
     Ok(())
 }

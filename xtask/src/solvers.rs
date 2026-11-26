@@ -1,15 +1,11 @@
 //! Prebuilt solvers bundled into the sysroot by `cargo x install --bundle-solvers`.
 
-use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
-};
+use std::{env, fs, io, path::Path};
 
 use anyhow::anyhow;
 use flux_sysroot::{
     bin_dir, bin_path,
-    install::{self, download, remove_path, BundledSolver},
+    install::{self, download, remove_broken_solvers, remove_path, BundledSolver},
 };
 
 /// Whether to bundle prebuilt solvers into the sysroot.
@@ -64,23 +60,12 @@ fn z3_archive_url() -> Option<String> {
     ))
 }
 
-/// Downloads fixpoint and z3 into `sysroot`. Flux looks up the solvers that aren't bundled in
-/// `PATH`.
-///
-/// z3 is only bundled together with a fixpoint that supports `--solver-path`. Otherwise, Flux would
-/// pass the bundled z3 to a fixpoint that can't take it.
+/// Downloads fixpoint and z3 into `sysroot`, and removes the ones that don't run on this machine,
+/// see [`remove_broken_solvers`]. Flux looks up the solvers that aren't bundled in `PATH`.
 pub(crate) fn bundle(sysroot: &Path, required: bool) -> anyhow::Result<()> {
-    let Some(fixpoint) = download_solver(&FIXPOINT, sysroot, required)? else {
-        return skip(required, "not bundling `z3` without `fixpoint`");
-    };
-    if !supports_solver_path(&fixpoint) {
-        return skip(
-            required,
-            "not bundling `z3` because the prebuilt `fixpoint` doesn't support `--solver-path`",
-        );
-    }
+    download_solver(&FIXPOINT, sysroot, required)?;
     download_solver(&Z3, sysroot, required)?;
-    Ok(())
+    remove_broken_solvers(sysroot, required)
 }
 
 /// Gives up on bundling a solver: an error if `required`, and a warning otherwise.
@@ -92,41 +77,20 @@ fn skip(required: bool, reason: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Downloads `solver` into `sysroot` and returns its path. Returns `None`, or an error if
-/// `required`, if there is no prebuilt binary for the host or if it doesn't run on it.
-fn download_solver(
-    solver: &Solver,
-    sysroot: &Path,
-    required: bool,
-) -> anyhow::Result<Option<PathBuf>> {
+/// Downloads `solver` into `sysroot`. Skips it, or errors if `required`, if there is no prebuilt
+/// binary for the host.
+fn download_solver(solver: &Solver, sysroot: &Path, required: bool) -> anyhow::Result<()> {
     let name = solver.bundled.name;
     let Some(url) = (solver.archive_url)() else {
         let reason =
             format!("there is no prebuilt `{name}` for {}-{}", env::consts::ARCH, env::consts::OS);
-        skip(required, &reason)?;
-        return Ok(None);
+        return skip(required, &reason);
     };
     let exe = bin_path(sysroot, name);
     let archive = bin_dir(sysroot).join(url.rsplit('/').next().unwrap_or(name));
     download(&url, &archive)?;
     extract_executable(&archive, &exe)?;
-    remove_path(&archive)?;
-
-    if !solver.bundled.runs(sysroot) {
-        remove_path(&exe)?;
-        skip(required, &format!("the prebuilt `{name}` doesn't run on this machine"))?;
-        return Ok(None);
-    }
-    Ok(Some(exe))
-}
-
-/// Whether `fixpoint` supports `--solver-path`, i.e., lists it in its help.
-fn supports_solver_path(fixpoint: &Path) -> bool {
-    Command::new(fixpoint)
-        .arg("--help")
-        .stderr(Stdio::null())
-        .output()
-        .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).contains("--solver-path"))
+    remove_path(&archive)
 }
 
 /// Extracts the file named like `exe` from the `.zip` or `.tar.gz` `archive` into `exe`.

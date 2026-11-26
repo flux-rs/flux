@@ -25,7 +25,7 @@ pub struct BundledSolver {
 
 impl BundledSolver {
     /// Whether the solver bundled in `sysroot` runs on this machine.
-    pub fn runs(&self, sysroot: &Path) -> bool {
+    pub fn check_if_runs(&self, sysroot: &Path) -> bool {
         Command::new(bin_path(sysroot, self.name))
             .arg(self.version_arg)
             .stdout(Stdio::null())
@@ -41,6 +41,25 @@ pub const FIXPOINT: BundledSolver =
 pub const Z3: BundledSolver = BundledSolver { name: "z3", version_arg: "--version" };
 
 pub const BUNDLED_SOLVERS: &[BundledSolver] = &[FIXPOINT, Z3];
+
+/// Removes the solvers bundled in `sysroot` that don't run on this machine, e.g., on an older OS
+/// than they were built for. Flux looks them up in `PATH` instead. If `required`, it's an error
+/// instead.
+pub fn remove_broken_solvers(sysroot: &Path, required: bool) -> anyhow::Result<()> {
+    for solver in BUNDLED_SOLVERS {
+        let path = bin_path(sysroot, solver.name);
+        if !path.exists() || solver.check_if_runs(sysroot) {
+            continue;
+        }
+        let reason = format!("the bundled `{}` doesn't run on this machine", solver.name);
+        if required {
+            return Err(anyhow!("{reason}"));
+        }
+        eprintln!("warning: {reason}, Flux will look it up in PATH");
+        remove_path(&path)?;
+    }
+    Ok(())
+}
 
 /// Returns the paths in cargo's `bin` directory the [`LINKED_BINARIES`] are linked from.
 pub fn binary_links() -> anyhow::Result<Vec<PathBuf>> {
