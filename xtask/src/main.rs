@@ -7,7 +7,7 @@ use std::{
     collections::BTreeMap,
     env,
     ffi::OsStr,
-    fs, io,
+    fs,
     mem::variant_count,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
@@ -21,6 +21,7 @@ use cargo_metadata::{
 use flux_sysroot::{
     bin_dir, bin_path, default_flux_sysroot_dir,
     dev::{default_flags, Suite},
+    install::{self, copy_file, create_dir, link_binaries, remove_path, replace_dir, sibling_path},
     lib_dir, parse_toolchain_file, FluxVersion, SysrootCrate, SysrootManifest, FLUX_SYSROOT,
     SYSROOT_MANIFEST,
 };
@@ -410,71 +411,7 @@ fn install(args: &Install, rust_fixpoint: bool) -> anyhow::Result<()> {
 }
 
 fn uninstall() -> anyhow::Result<()> {
-    let sysroot = default_flux_sysroot_dir();
-    for link in binary_links()? {
-        if is_link_to(&link, &sysroot) {
-            eprintln!("$ rm {}", link.display());
-            remove_path(&link)?;
-        }
-    }
-    eprintln!("$ rm -rf {}", sysroot.display());
-    remove_path(&sysroot)?;
-    Ok(())
-}
-
-/// Binaries in the sysroot that are linked from cargo's `bin` directory, which is where cargo looks
-/// for external subcommands and is usually on the `PATH`.
-const LINKED_BINARIES: &[&str] = &["cargo-flux", "flux"];
-
-/// Returns the paths in cargo's `bin` directory the [`LINKED_BINARIES`] are linked from.
-fn binary_links() -> anyhow::Result<Vec<PathBuf>> {
-    let cargo_bin = home::cargo_home()?.join("bin");
-    Ok(LINKED_BINARIES
-        .iter()
-        .map(|name| cargo_bin.join(format!("{name}{}", env::consts::EXE_SUFFIX)))
-        .collect())
-}
-
-/// Links the [`LINKED_BINARIES`] in `sysroot` from cargo's `bin` directory, replacing whatever is
-/// there. The links point to `sysroot` itself rather than to the directory it resolves to, so they
-/// keep working when `sysroot` is replaced. Windows doesn't have unprivileged symlinks, so there
-/// the binaries are copied instead.
-fn link_binaries(sysroot: &Path) -> anyhow::Result<()> {
-    for (name, link) in LINKED_BINARIES.iter().zip(binary_links()?) {
-        if let Some(parent) = link.parent() {
-            create_dir(parent)?;
-        }
-        // Create the link next to its final location and rename it there, so it's replaced
-        // atomically.
-        let tmp = sibling_path(&link, "tmp");
-        remove_path(&tmp)?;
-        symlink_or_copy(&bin_path(sysroot, name), &tmp)?;
-        rename(&tmp, &link)?;
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-fn symlink_or_copy(target: &Path, link: &Path) -> anyhow::Result<()> {
-    eprintln!("$ ln -s {} {}", target.display(), link.display());
-    std::os::unix::fs::symlink(target, link).map_err(|err| {
-        anyhow!("failed to link `{}` to `{}`: {err}", link.display(), target.display())
-    })
-}
-
-#[cfg(not(unix))]
-fn symlink_or_copy(target: &Path, link: &Path) -> anyhow::Result<()> {
-    copy_file(target, link)
-}
-
-/// Whether `link` was created by [`link_binaries`] for `sysroot`. On Windows, where the binaries
-/// are copied, any file is assumed to be.
-fn is_link_to(link: &Path, sysroot: &Path) -> bool {
-    if cfg!(unix) {
-        fs::read_link(link).is_ok_and(|target| target.starts_with(bin_dir(sysroot)))
-    } else {
-        link.is_file()
-    }
+    install::uninstall(&default_flux_sysroot_dir())
 }
 
 fn doc(_args: Doc) -> anyhow::Result<()> {
@@ -619,48 +556,11 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     write_sysroot_toml(&manifest, &staging)?;
 
     if let BundleSolvers::Yes { required } = config.bundle_solvers {
-        solvers::bundle(&bin_dir(&staging), required)?;
+        solvers::bundle(&staging, required)?;
     }
 
     replace_dir(&staging, &config.dst)?;
     Ok(flux_driver)
-}
-
-/// Replaces `dst` with `src`. Where the platform and filesystem support it, the two are exchanged
-/// atomically. Elsewhere (e.g., on Windows), `dst` is moved out of the way first, so it briefly
-/// doesn't exist.
-fn replace_dir(src: &Path, dst: &Path) -> anyhow::Result<()> {
-    if !dst.exists() {
-        return rename(src, dst);
-    }
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        use rustix::fs::{renameat_with, RenameFlags, CWD};
-        eprintln!("$ exchange {} {}", src.display(), dst.display());
-        if renameat_with(CWD, src, CWD, dst, RenameFlags::EXCHANGE).is_ok() {
-            // `src` now holds the old contents of `dst`
-            return remove_path(src);
-        }
-    }
-    let old = sibling_path(dst, "old");
-    remove_path(&old)?;
-    rename(dst, &old)?;
-    rename(src, dst)?;
-    remove_path(&old)
-}
-
-fn rename(src: &Path, dst: &Path) -> anyhow::Result<()> {
-    eprintln!("$ mv {} {}", src.display(), dst.display());
-    fs::rename(src, dst).map_err(|err| {
-        anyhow!("failed to rename `{}` to `{}`: {err}", src.display(), dst.display())
-    })
-}
-
-/// Returns `path` with `.{suffix}` appended, e.g., `sysroot` becomes `sysroot.new`.
-fn sibling_path(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.file_name().unwrap_or_default().to_os_string();
-    name.push(format!(".{suffix}"));
-    path.with_file_name(name)
 }
 
 /// Version of the Flux sources, read from git when the sysroot is built.
@@ -840,26 +740,6 @@ fn display_command(cmd: &Command) {
     eprintln!();
 }
 
-fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Result<()> {
-    let src = src.as_ref();
-    let dst = dst.as_ref();
-    eprintln!("$ cp {} {}", src.display(), dst.display());
-
-    let mut _tmp;
-    let mut dst = dst;
-    if dst.is_dir() {
-        if let Some(file_name) = src.file_name() {
-            _tmp = dst.join(file_name);
-            dst = &_tmp;
-        }
-    }
-    std::fs::copy(src, dst).map_err(|err| {
-        anyhow!("failed to copy `{}` to `{}`: {err}", src.display(), dst.display())
-    })?;
-
-    Ok(())
-}
-
 trait CommandExt {
     fn run(&mut self) -> anyhow::Result<()>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
@@ -929,41 +809,5 @@ impl CommandExt for Command {
         check_status(child.wait()?)?;
 
         Ok(artifacts)
-    }
-}
-
-/// Removes the file or directory at `path`. A symlink is removed itself, not what it points to.
-fn remove_path(path: &Path) -> anyhow::Result<()> {
-    match path.symlink_metadata() {
-        Ok(meta) => {
-            if meta.is_dir() { remove_dir_all(path) } else { fs::remove_file(path) }
-                .map_err(|err| anyhow!("failed to remove path `{}`: {err}", path.display()))
-        }
-        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(anyhow!("failed to remove path `{}`: {err}", path.display())),
-    }
-}
-
-#[cfg(not(windows))]
-fn remove_dir_all(path: &Path) -> io::Result<()> {
-    std::fs::remove_dir_all(path)
-}
-
-// Copied from xshell
-#[cfg(windows)]
-fn remove_dir_all(path: &Path) -> io::Result<()> {
-    for _ in 0..99 {
-        if fs::remove_dir_all(path).is_ok() {
-            return Ok(());
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10))
-    }
-    fs::remove_dir_all(path)
-}
-
-fn create_dir(path: &Path) -> anyhow::Result<()> {
-    match fs::create_dir_all(path) {
-        Ok(()) => Ok(()),
-        Err(err) => Err(anyhow!("failed to create directory `{}`: {err}", path.display())),
     }
 }

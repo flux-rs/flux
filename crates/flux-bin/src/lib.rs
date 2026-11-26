@@ -6,6 +6,7 @@ use serde::Deserialize;
 pub mod cargo_flux_opts;
 pub mod cargo_style;
 pub mod config;
+pub mod self_cmd;
 pub mod utils;
 
 /// The `[package.metadata.flux]` table in `Cargo.toml`.

@@ -1,6 +1,7 @@
 //! Shared sysroot utilities for `flux-bin`, `flux-driver`, `xtask`, and `tests`.
 
 pub mod dev;
+pub mod install;
 
 use std::{
     collections::BTreeMap,

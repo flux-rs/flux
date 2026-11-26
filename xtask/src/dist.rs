@@ -3,10 +3,11 @@
 use std::{fs, path::Path, process::Command};
 
 use anyhow::anyhow;
+use flux_sysroot::install::remove_path;
 
 use crate::{
-    install_sysroot, remove_path, solvers::BundleSolvers, workspace_root, BuildLibs, Dist, FluxLib,
-    Profile, SysrootConfig,
+    install_sysroot, solvers::BundleSolvers, workspace_root, BuildLibs, Dist, FluxLib, Profile,
+    SysrootConfig,
 };
 
 /// Builds the sysroot for the host into `<out-dir>/sysroot`, with the solvers bundled, and packs it

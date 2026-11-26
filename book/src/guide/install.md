@@ -6,20 +6,61 @@ You can install and then run Flux either on a single file or on an entire crate.
 
 - [rustup](https://rustup.rs/)
 
-  Rustup is required because Flux needs access to the source code of the Rust compiler, which we grab from rustup.
+  Flux runs with a specific nightly version of Rust, which the installation installs with rustup.
 
 - [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint) and
   [z3](https://github.com/Z3Prover/z3) 4.15 or later
 
-  The [installation step](#install) downloads both for you on the platforms with prebuilt binaries:
-  x86_64 Linux, aarch64 macOS, and x86_64 Windows. On other platforms, install them yourself:
+  The prebuilt releases include both. If a bundled solver doesn't run on your machine, e.g., on an
+  older OS, the installation removes it and Flux looks it up in your `$PATH`. When you build Flux
+  from source, `--bundle-solvers` downloads both on the platforms with prebuilt binaries. On other
+  platforms, install them yourself:
   [build liquid-fixpoint from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install)
   and download z3 from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). Make sure that
   the `fixpoint` and `z3` binaries are in your `$PATH`.
 
 ## Install
 
-The only way to use Flux is to build it from source.
+There are prebuilt releases of Flux for x86_64 Linux, aarch64 macOS, and x86_64 Windows. On other
+platforms, [build Flux from source](#building-from-source).
+
+On Linux and macOS, run
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/flux-rs/flux/main/install.sh | sh
+```
+
+On Windows, run the following in PowerShell
+
+```powershell
+irm https://raw.githubusercontent.com/flux-rs/flux/main/install.ps1 | iex
+```
+
+This installs the latest release of Flux: the Flux sysroot (the binaries, precompiled libraries,
+and solvers) to `$HOME/.flux/sysroot`, and the Rust toolchain it needs with rustup. It also links
+two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`). These two binaries
+should be used respectively to run Flux on either a single file or on a cargo project.
+
+### Updating and Uninstalling
+
+To update Flux to the latest release, run
+
+```bash
+cargo flux self update
+```
+
+A release is published for every commit to the `main` branch. A copy of the latest one is kept for
+each day as `nightly-yyyy-mm-dd`, for the last 30 days. To install one of them, e.g., to go back to a
+version that worked for you, run
+
+```bash
+cargo flux self update --to nightly-2026-11-20
+```
+
+To uninstall Flux, run `cargo flux self uninstall`. This leaves your
+[configuration](#flux-home) and the Rust toolchain alone.
+
+### Building from Source
 
 First you need to clone the repository
 
@@ -40,13 +81,10 @@ Next, run the following to build and install `flux` binaries
 cargo xtask install --bundle-solvers
 ```
 
-This will install the Flux sysroot (the binaries and precompiled libraries) to `$HOME/.flux/sysroot` and
-link two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`). These two binaries
-should be used respectively to run Flux on either a single file or on a cargo project.
-
-With `--bundle-solvers`, the installation also downloads liquid-fixpoint and z3 into the sysroot if
-there are prebuilt binaries for your platform. Flux looks up any solver that isn't downloaded in your
-`$PATH`.
+This installs Flux like the prebuilt releases do. With `--bundle-solvers`, the installation also
+downloads liquid-fixpoint and z3 into the sysroot if there are prebuilt binaries for your platform.
+Flux looks up any solver that isn't downloaded in your `$PATH`. Run `cargo xtask uninstall` to
+uninstall it.
 
 ## Flux Home
 
@@ -58,7 +96,7 @@ The Flux home is the directory `$HOME/.flux`. Its location can be changed by set
 - `sysroot/` — The Flux sysroot. It contains the binaries (`bin/flux`, `bin/cargo-flux` and
   `bin/flux-driver`), the precompiled Flux libraries (`lib/`), and a manifest (`sysroot.toml`)
   recording the Flux version and the Rust toolchain it was built with. It is managed by
-  `cargo xtask install` and `cargo xtask uninstall`, which replace or remove the whole directory.
+  `cargo flux self` and `cargo xtask install`, which replace or remove the whole directory.
   Use the `FLUX_SYSROOT` environment variable to use a sysroot in a different location.
 
 ## Running on a package: `cargo-flux`

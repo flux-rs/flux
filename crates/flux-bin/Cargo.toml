@@ -22,9 +22,12 @@ flux-sysroot.workspace = true
 
 anyhow.workspace = true
 cargo_metadata.workspace = true
+flate2.workspace = true
 itertools.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+tar.workspace = true
 tempfile.workspace = true
 toml.workspace = true
 clap.workspace = true
