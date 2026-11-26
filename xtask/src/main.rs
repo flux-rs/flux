@@ -1,5 +1,6 @@
 #![feature(variant_count)]
 
+mod dist;
 mod solvers;
 
 use std::{
@@ -23,6 +24,8 @@ use flux_sysroot::{
     lib_dir, parse_toolchain_file, FluxVersion, SysrootCrate, SysrootManifest, FLUX_SYSROOT,
     SYSROOT_MANIFEST,
 };
+
+use crate::solvers::BundleSolvers;
 
 xflags::xflags! {
     cmd xtask {
@@ -67,6 +70,11 @@ xflags::xflags! {
             optional --no-extern-specs
             /// Download prebuilt `fixpoint` and `z3` into the sysroot, if there are any for this platform
             optional --bundle-solvers
+        }
+        /// Build a release archive of the Flux sysroot for this platform, with the solvers bundled
+        cmd dist {
+            /// Directory to write the archive to. Default `target/dist`
+            optional --out-dir dir: PathBuf
         }
         /// Uninstall Flux binaries and libraries
         cmd uninstall { }
@@ -134,6 +142,11 @@ fn main() -> anyhow::Result<()> {
         if matches!(&cmd.subcommand, XtaskCmd::Install(args) if args.bundle_solvers) {
             return Err(anyhow!("`--bundle-solvers` needs to download the solvers, so it can't be used with `--offline`"));
         }
+        if matches!(&cmd.subcommand, XtaskCmd::Dist(_)) {
+            return Err(anyhow!(
+                "`dist` needs to download the solvers, so it can't be used with `--offline`"
+            ));
+        }
     }
 
     match cmd.subcommand {
@@ -148,11 +161,12 @@ fn main() -> anyhow::Result<()> {
                 rust_fixpoint: cmd.rust_fixpoint,
                 dst: local_sysroot_dir()?,
                 build_libs: BuildLibs { force: true, libs: FluxLib::ALL },
-                bundle_solvers: false,
+                bundle_solvers: BundleSolvers::No,
             };
             install_sysroot(&config)?;
             Ok(())
         }
+        XtaskCmd::Dist(args) => dist::dist(&args, cmd.rust_fixpoint),
         XtaskCmd::Uninstall(_) => uninstall(),
         XtaskCmd::Expand(args) => expand(args),
         XtaskCmd::Blick(args) => blick(&args),
@@ -193,7 +207,7 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
             rust_fixpoint,
             dst: dst.clone(),
             build_libs: BuildLibs { force: false, libs },
-            bundle_solvers: false,
+            bundle_solvers: BundleSolvers::No,
         };
         let flux_driver = install_sysroot(&config)?;
         run_tests(&flux_driver, &dst, suite.name(), args.filter.as_deref(), args.fixpoint_timeout)?;
@@ -209,7 +223,7 @@ fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
         rust_fixpoint,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, libs: FluxLib::ALL },
-        bundle_solvers: false,
+        bundle_solvers: BundleSolvers::No,
     };
     let flux_driver = install_sysroot(&config)?;
 
@@ -363,7 +377,7 @@ fn run_inner(
         rust_fixpoint,
         dst: local_sysroot_dir()?,
         build_libs,
-        bundle_solvers: false,
+        bundle_solvers: BundleSolvers::No,
     };
 
     let flux_driver = install_sysroot(&config)?;
@@ -385,7 +399,11 @@ fn install(args: &Install, rust_fixpoint: bool) -> anyhow::Result<()> {
         rust_fixpoint,
         dst: default_flux_sysroot_dir(),
         build_libs: BuildLibs { force: false, libs },
-        bundle_solvers: args.bundle_solvers,
+        bundle_solvers: if args.bundle_solvers {
+            BundleSolvers::Yes { required: false }
+        } else {
+            BundleSolvers::No
+        },
     };
     install_sysroot(&config)?;
     link_binaries(&config.dst)
@@ -497,7 +515,7 @@ struct SysrootConfig {
     dst: PathBuf,
     build_libs: BuildLibs,
     /// Whether to download prebuilt solvers into the sysroot
-    bundle_solvers: bool,
+    bundle_solvers: BundleSolvers,
 }
 
 struct BuildLibs {
@@ -600,8 +618,8 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<Utf8PathBuf> {
     manifest.crates = copy_artifacts(&artifacts, &lib_dir(&staging))?;
     write_sysroot_toml(&manifest, &staging)?;
 
-    if config.bundle_solvers {
-        solvers::bundle(&bin_dir(&staging))?;
+    if let BundleSolvers::Yes { required } = config.bundle_solvers {
+        solvers::bundle(&bin_dir(&staging), required)?;
     }
 
     replace_dir(&staging, &config.dst)?;

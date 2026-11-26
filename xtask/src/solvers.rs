@@ -10,6 +10,19 @@ use anyhow::anyhow;
 
 use crate::{remove_path, CommandExt};
 
+/// Whether to bundle prebuilt solvers into the sysroot.
+#[derive(Clone, Copy)]
+pub(crate) enum BundleSolvers {
+    /// Don't bundle solvers. Flux looks them up in `PATH`.
+    No,
+    /// Bundle the solvers that have a prebuilt binary for the host and run on it.
+    Yes {
+        /// Fail if a solver can't be bundled. Otherwise, it's skipped with a warning and Flux looks
+        /// it up in `PATH`.
+        required: bool,
+    },
+}
+
 /// A solver downloaded into the sysroot by `cargo x install --bundle-solvers`.
 struct Solver {
     name: &'static str,
@@ -59,32 +72,40 @@ fn z3_archive_url() -> Option<String> {
 ///
 /// z3 is only bundled together with a fixpoint that supports `--solver-path`. Otherwise, Flux would
 /// pass the bundled z3 to a fixpoint that can't take it.
-pub(crate) fn bundle(bin: &Path) -> anyhow::Result<()> {
-    let Some(fixpoint) = download_solver(&FIXPOINT, bin)? else {
-        eprintln!("warning: not bundling `z3` without `fixpoint`, Flux will look it up in PATH");
-        return Ok(());
+pub(crate) fn bundle(bin: &Path, required: bool) -> anyhow::Result<()> {
+    let Some(fixpoint) = download_solver(&FIXPOINT, bin, required)? else {
+        return skip(required, "not bundling `z3` without `fixpoint`");
     };
     if !supports_solver_path(&fixpoint) {
-        eprintln!(
-            "warning: not bundling `z3` because the prebuilt `fixpoint` doesn't support \
-             `--solver-path`, Flux will look it up in PATH"
+        return skip(
+            required,
+            "not bundling `z3` because the prebuilt `fixpoint` doesn't support `--solver-path`",
         );
-        return Ok(());
     }
-    download_solver(&Z3, bin)?;
+    download_solver(&Z3, bin, required)?;
     Ok(())
 }
 
-/// Downloads `solver` into `bin` and returns its path. Returns `None` with a warning if there is no
-/// prebuilt binary for the host or if it doesn't run on it.
-fn download_solver(solver: &Solver, bin: &Path) -> anyhow::Result<Option<PathBuf>> {
+/// Gives up on bundling a solver: an error if `required`, and a warning otherwise.
+fn skip(required: bool, reason: &str) -> anyhow::Result<()> {
+    if required {
+        return Err(anyhow!("{reason}"));
+    }
+    eprintln!("warning: {reason}, Flux will look it up in PATH");
+    Ok(())
+}
+
+/// Downloads `solver` into `bin` and returns its path. Returns `None`, or an error if `required`,
+/// if there is no prebuilt binary for the host or if it doesn't run on it.
+fn download_solver(solver: &Solver, bin: &Path, required: bool) -> anyhow::Result<Option<PathBuf>> {
     let Some(url) = (solver.archive_url)() else {
-        eprintln!(
-            "warning: there is no prebuilt `{}` for {}-{}, Flux will look it up in PATH",
+        let reason = format!(
+            "there is no prebuilt `{}` for {}-{}",
             solver.name,
             env::consts::ARCH,
             env::consts::OS,
         );
+        skip(required, &reason)?;
         return Ok(None);
     };
     let exe = bin.join(format!("{}{}", solver.name, env::consts::EXE_SUFFIX));
@@ -100,11 +121,8 @@ fn download_solver(solver: &Solver, bin: &Path) -> anyhow::Result<Option<PathBuf
         .status()
         .is_ok_and(|status| status.success());
     if !runs {
-        eprintln!(
-            "warning: the prebuilt `{}` doesn't run on this machine, Flux will look it up in PATH",
-            solver.name
-        );
         remove_path(&exe)?;
+        skip(required, &format!("the prebuilt `{}` doesn't run on this machine", solver.name))?;
         return Ok(None);
     }
     Ok(Some(exe))

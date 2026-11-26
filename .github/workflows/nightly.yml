@@ -1,0 +1,190 @@
+name: nightly
+
+# For every push to main that passes CI, builds release archives of Flux, publishes them as the
+# `nightly` release, and deploys the Linux one to the playground server. Once a day,
+# nightly-daily.yml keeps a copy of the `nightly` release as `nightly-yyyy-mm-dd`.
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # The commit CI tested, or the one the workflow was dispatched on.
+  COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    strategy:
+      matrix:
+        include:
+          # The bundled z3 needs glibc 2.39, so the Linux archive is built with it too.
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+          # Pinned rather than `macos-latest`, so the release build doesn't change when GitHub moves it.
+          - target: aarch64-apple-darwin
+            os: macos-15
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.8.0
+        with:
+          cache-bin: false
+
+      - name: Build release archive
+        run: cargo x dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flux-${{ matrix.target }}
+          path: target/dist/flux-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+          # The archive is already compressed.
+          compression-level: 0
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    # Shared with nightly-daily.yml, so the release doesn't change while it's being copied.
+    concurrency:
+      group: nightly-release
+      cancel-in-progress: false
+    outputs:
+      latest: ${{ steps.latest.outputs.latest }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT }}
+
+      # CI runs can finish out of order. Don't let an older commit replace a newer one: the newer
+      # commit publishes itself once its CI passes.
+      - name: Check that main hasn't moved on
+        id: latest
+        run: |
+          main=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$main" = "$COMMIT" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main moved on to $main, not publishing $COMMIT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.latest.outputs.latest == 'true'
+        with:
+          pattern: flux-*
+          path: dist
+          merge-multiple: true
+
+      - name: Write manifest
+        if: steps.latest.outputs.latest == 'true'
+        run: |
+          python3 .github/scripts/nightly_manifest.py dist "$GITHUB_REPOSITORY" nightly \
+            "$COMMIT" "$(git show -s --format=%cs "$COMMIT")"
+          cat dist/manifest.json
+
+      - name: Publish the nightly release
+        if: steps.latest.outputs.latest == 'true'
+        run: |
+          if ! gh release view nightly > /dev/null 2>&1; then
+            gh release create nightly --prerelease --target "$COMMIT" --title "Nightly" --notes ""
+          fi
+          git tag -f nightly "$COMMIT"
+          git push -f origin refs/tags/nightly
+          # Upload the archives first, so the manifest never points to archives that aren't there.
+          gh release upload nightly dist/flux-*.tar.gz --clobber
+          gh release upload nightly dist/manifest.json --clobber
+          gh release edit nightly --prerelease --notes "Built from $COMMIT"
+
+  deploy:
+    # Deploys the Linux archive to the playground server. Configured through variables.
+    # DEPLOY_TARGET is read by `if`, which is evaluated before the environment is attached, so it
+    # must be a repository variable; the rest may also be `playground` environment ones.
+    #   DEPLOY_TARGET       ssh destination as user@host; the job is skipped when unset
+    #   DEPLOY_KNOWN_HOSTS  pinned `ssh-keyscan [-p <port>] <host>` output, verified out of band
+    #   DEPLOY_PORT         (optional) ssh port, default 22
+    # and the FLUX_DEPLOY_KEY secret, whose public key is restricted on the server to
+    # tools/flux-deploy. The server's glibc must not be older than the one the archive is built
+    # with, see the `build` job.
+    needs: publish
+    if: needs.publish.outputs.latest == 'true' && vars.DEPLOY_TARGET != ''
+    runs-on: ubuntu-24.04
+    environment: playground
+    # Serialize deploys; never cancel one mid-way through the upload/swap.
+    concurrency:
+      group: playground-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: flux-x86_64-unknown-linux-gnu
+          path: ${{ runner.temp }}
+
+      - name: Extract sysroot
+        run: |
+          tar -xzf "$RUNNER_TEMP/flux-x86_64-unknown-linux-gnu.tar.gz" -C "$RUNNER_TEMP"
+          echo "SYSROOT=$RUNNER_TEMP/sysroot" >> "$GITHUB_ENV"
+
+      # flux-deploy only deploys a sysroot built from a newer commit than the live one.
+      - name: Stamp build with commit timestamp
+        run: git log -1 --format='%ct' > "$SYSROOT/version"
+
+      - name: Set up SSH key
+        env:
+          FLUX_DEPLOY_KEY: ${{ secrets.FLUX_DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+        run: |
+          for v in DEPLOY_KNOWN_HOSTS FLUX_DEPLOY_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::$v is not set" >&2
+              exit 1
+            fi
+          done
+          mkdir -p ~/.ssh
+          printf '%s\n' "$FLUX_DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          # Used by both ssh and rsync, so the target stays a plain user@host.
+          if [ -n "$DEPLOY_PORT" ]; then
+            if [[ ! "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
+              echo "::error::DEPLOY_PORT must be a number" >&2
+              exit 1
+            fi
+            printf 'Host %s\n  Port %s\n' "${DEPLOY_TARGET#*@}" "$DEPLOY_PORT" >> ~/.ssh/config
+            chmod 600 ~/.ssh/config
+          fi
+
+      - name: Compute deploy ID
+        # Unique per run and per attempt, so re-runs never upload into the
+        # directory that is currently live on the server.
+        run: echo "DEPLOY_ID=$COMMIT-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
+
+      - name: Rsync flux sysroot to per-run staging directory on server
+        run: |
+          # Destination is relative: rrsync (the forced command on the server)
+          # roots it under ~/.flux-staging, so this lands in ~/.flux-staging/sysroot/$DEPLOY_ID.
+          rsync -az --delete "$SYSROOT/" "$DEPLOY_TARGET:sysroot/$DEPLOY_ID/"
+
+      - name: Atomically swap sysroot on server
+        run: ssh "$DEPLOY_TARGET" "flux-deploy sysroot $DEPLOY_ID"
