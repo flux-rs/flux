@@ -94,6 +94,7 @@ pub const FLUXFLAGS: &str = "FLUXFLAGS";
 pub struct Settings {
     pub cache: Cache,
     pub fixpoint: Fixpoint,
+    pub smt: Smt,
     pub diagnostics: Diagnostics,
     pub stats: Stats,
     pub debug: Debug,
@@ -111,8 +112,19 @@ pub struct Cache {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Fixpoint {
+    /// Path to the `fixpoint` executable (`-Ffixpoint`).
+    pub path: Option<Located<Utf8PathBuf>>,
     /// Timeout in seconds for each fixpoint query (`-Ffixpoint-timeout`).
     pub timeout: Option<u64>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
+pub struct Smt {
+    /// Path to the `z3` executable (`-Fz3`).
+    pub z3: Option<Located<Utf8PathBuf>>,
+    /// Path to the `cvc5` executable (`-Fcvc5`).
+    pub cvc5: Option<Located<Utf8PathBuf>>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -196,8 +208,17 @@ impl Settings {
                 .unwrap_or_else(|| target_dir.join("flux-cache"));
             flags.push(format!("-Fcache={dir}"));
         }
+        if let Some(v) = &self.fixpoint.path {
+            flags.push(format!("-Ffixpoint={}", v.resolve_executable()));
+        }
         if let Some(v) = self.fixpoint.timeout {
             flags.push(format!("-Ffixpoint-timeout={v}"));
+        }
+        if let Some(v) = &self.smt.z3 {
+            flags.push(format!("-Fz3={}", v.resolve_executable()));
+        }
+        if let Some(v) = &self.smt.cvc5 {
+            flags.push(format!("-Fcvc5={}", v.resolve_executable()));
         }
         if let Some(v) = self.diagnostics.verbose {
             flags.push(format!("-Fflux-verbose={v}"));

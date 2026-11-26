@@ -95,6 +95,7 @@ where
             &suggestion_ctx.const_decls,
             &suggestion_ctx.fun_defs,
             suggestion_ctx.data_decls.clone(),
+            flux_config::z3_path().as_deref(),
         )?);
     }
     let solver = solver.as_mut().unwrap();

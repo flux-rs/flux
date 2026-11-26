@@ -2,29 +2,20 @@
 
 You can install and then run Flux either on a single file or on an entire crate.
 
-## Quick Install (Linux / macOS)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/flux-rs/flux/main/install.sh | bash
-```
-
 ## Requirements
 
 - [rustup](https://rustup.rs/)
 
   Rustup is required because Flux needs access to the source code of the Rust compiler, which we grab from rustup.
 
-- [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint)
+- [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint) and
+  [z3](https://github.com/Z3Prover/z3) 4.15 or later
 
-  Nightly binary builds are avilable on [GitHub Releases](https://github.com/ucsd-progsys/liquid-fixpoint/releases/tag/nightly). If there is no binary available
-  for your platform, you will need to [build it from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install).
-
-- [z3](https://github.com/Z3Prover/z3) 4.15 or later
-
-  You can download a binary for your platform from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). We recommend downloading the latest version, but older version should also work.
-
-**Note:**
-Make sure that the `liquid-fixpoint` and `z3` binaries are in your `$PATH`.
+  The [installation step](#install) downloads both for you on the platforms with prebuilt binaries:
+  x86_64 Linux, aarch64 macOS, and x86_64 Windows. On other platforms, install them yourself:
+  [build liquid-fixpoint from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install)
+  and download z3 from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). Make sure that
+  the `fixpoint` and `z3` binaries are in your `$PATH`.
 
 ## Install
 
@@ -37,19 +28,25 @@ git clone https://github.com/flux-rs/flux
 cd flux
 ```
 
-To build the source you need a nightly version of `rustc`.
-We pin the version using a [toolchain file](https://github.com/flux-rs/flux/blob/main/rust-toolchain.toml) (more info [here](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file)).
-If you are using `rustup`, no special action is needed as it should install the correct `rustc` version and components based on the information on that file.
+Flux is built with a specific nightly version of Rust, pinned in the repository's
+[toolchain file](https://github.com/flux-rs/flux/blob/main/rust-toolchain.toml). You don't need to
+install it yourself: `rustup`
+[reads that file](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file) and installs
+that version, together with the components Flux needs, the first time you build.
 
 Next, run the following to build and install `flux` binaries
 
 ```bash
-cargo xtask install
+cargo xtask install --bundle-solvers
 ```
 
 This will install the Flux sysroot (the binaries and precompiled libraries) to `$HOME/.flux/sysroot` and
 link two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`). These two binaries
-should be used respectively to run Flux on either a single file or on a project using cargo.
+should be used respectively to run Flux on either a single file or on a cargo project.
+
+With `--bundle-solvers`, the installation also downloads liquid-fixpoint and z3 into the sysroot if
+there are prebuilt binaries for your platform. Flux looks up any solver that isn't downloaded in your
+`$PATH`.
 
 ## Flux Home
 
@@ -177,14 +174,14 @@ thing).
 
 Read [these chapters](SUMMARY.md#learn) to learn more about what you specify and verify with `flux`.
 
-## A note about the flux-driver binary
+## Configuration
 
-The `flux-driver` binary is a [rustc
-driver](https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface)
-(similar to how clippy works) meaning it uses rustc as a library to "drive"
-compilation performing additional analysis along the way. Running the binary
-requires dynamically linking a correct version of `librustc`. Thus, to avoid the
-hassle you should never execute it directly. Instead, use `flux` or `cargo-flux`.
+A package is configured in two places:
+
+- The `[package.metadata.flux]` table in `Cargo.toml` describes properties of the crate, i.e.,
+  _what_ is verified. See [The Manifest Format](../reference/manifest.md).
+- `.flux/config.toml` files control _how_ `cargo flux` runs, e.g., caching, timeouts or extra
+  output. See [Configuration](../reference/config.md).
 
 ## Editor Support
 
@@ -204,47 +201,3 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
   ]
 }
 ```
-
-**Note:** Make sure to edit the paths in the above snippet to point to the correct locations on your machine.
-
-## Configuration
-
-A package is configured in two places:
-
-- The `[package.metadata.flux]` table in `Cargo.toml` describes properties of the crate, i.e.,
-  _what_ is verified. See [The Manifest Format](../reference/manifest.md).
-- `.flux/config.toml` files control _how_ `cargo flux` runs, e.g., caching, timeouts or extra
-  output. See [Configuration](../reference/config.md).
-
-### Flux Flags
-
-The `flux` binary accepts configuration flags in the format `-Fname=value`. For boolean flags, the
-`value` can be one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, `false`. Alternatively, the `value`
-can be omitted which will default to `true`. For example, to set the solver to `cvc5` and enable
-qualifier scraping:
-
-```console
-flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
-```
-
-For all available flags, see <https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>
-
-When running `cargo flux`, flags defined in the `FLUXFLAGS` environment variable are passed to all
-packages checked by Flux, for example, to print timing information:
-
-```console
-FLUXFLAGS="-Ftimings" cargo flux
-```
-
-See [how flags are combined](../reference/config.md#how-flags-are-combined) for how these flags
-interact with the manifest and the configuration files.
-
-### Verbose Flag
-
-One particularly useful flag is
-
-```console
-FLUXFLAGS="-Fflux-verbose" cargo flux
-```
-
-This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see _which_ function's code caused the issue, so you might mark it as `trusted`, so flux can skip checking its body, and hence, live to fight another day...

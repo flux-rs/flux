@@ -92,6 +92,18 @@ pub struct Flags {
         default_value = "z3"
     )]
     pub solver: SmtSolver,
+    /// Path to the `z3` executable. Defaults to `<sysroot>/bin/z3` if it exists, and to looking up
+    /// `z3` in `PATH` otherwise.
+    #[arg(long = flux_arg!("z3"), value_name = "PATH")]
+    pub z3: Option<PathBuf>,
+    /// Path to the `cvc5` executable. Defaults to `<sysroot>/bin/cvc5` if it exists, and to looking
+    /// up `cvc5` in `PATH` otherwise.
+    #[arg(long = flux_arg!("cvc5"), value_name = "PATH")]
+    pub cvc5: Option<PathBuf>,
+    /// Path to the `fixpoint` executable. Defaults to `<sysroot>/bin/fixpoint` if it exists, and to
+    /// looking up `fixpoint` in `PATH` otherwise.
+    #[arg(long = flux_arg!("fixpoint"), value_name = "PATH")]
+    pub fixpoint: Option<PathBuf>,
     /// Enables qualifier scrapping in fixpoint.
     #[arg(
         long = flux_arg!("scrape-quals"),
@@ -270,6 +282,9 @@ impl Default for Flags {
             fixpoint_timeout: None,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
+            z3: None,
+            cvc5: None,
+            fixpoint: None,
             annots: false,
             timings: false,
             summary: true,
@@ -358,6 +373,9 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "fixpoint-timeout" => parse_opt_u64(&mut flags.fixpoint_timeout, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
+            "z3" => parse_opt_path_buf(&mut flags.z3, value),
+            "cvc5" => parse_opt_path_buf(&mut flags.cvc5, value),
+            "fixpoint" => parse_opt_path_buf(&mut flags.fixpoint, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "summary" => parse_bool(&mut flags.summary, value),
