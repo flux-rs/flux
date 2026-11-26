@@ -193,7 +193,12 @@ enabled = true                 # enable fixpoint query caching
 dir = "flux-cache"             # where cache files are saved
 
 [fixpoint]
+path = "fixpoint"              # the fixpoint executable
 timeout = 30                   # timeout in seconds for each fixpoint query
+
+[smt]
+z3 = "z3"                      # the z3 executable
+cvc5 = "cvc5"                  # the cvc5 executable
 
 [diagnostics]
 verbose = false                # more detailed error messages
@@ -227,6 +232,9 @@ the manifest.</p>
 <p>Relative paths in a configuration file are resolved against the parent of the directory containing
 the file. For example, <code>cache.dir = "flux-cache"</code> in <code>/my/project/.flux/config.toml</code> resolves to
 <code>/my/project/flux-cache</code>.</p>
+<p>Paths to executables, i.e., <a href="#fixpointpath"><code>fixpoint.path</code></a>, <a href="#smtz3"><code>smt.z3</code></a>, and
+<a href="#smtcvc5"><code>smt.cvc5</code></a>, follow the same rule as cargo's: a name without path separators, e.g.,
+<code>z3</code>, is looked up in <code>PATH</code>, and any other relative path is resolved as above.</p>
 <h2 id="package-overrides"><a class="header" href="#package-overrides">Package overrides</a></h2>
 <p>Settings can be overridden for specific packages with <code>[package.&lt;spec&gt;]</code> tables, similar to cargo's
 <a href="https://doc.rust-lang.org/cargo/reference/profiles.html#overrides">profile overrides</a>. <code>&lt;spec&gt;</code>
@@ -295,6 +303,13 @@ space-separated string. See <a href="#how-flags-are-combined">how flags are comb
 </ul>
 <p>The directory where cache files are saved.</p>
 <h3 id="fixpoint"><a class="header" href="#fixpoint"><code>[fixpoint]</code></a></h3>
+<h4 id="fixpointpath"><a class="header" href="#fixpointpath"><code>fixpoint.path</code></a></h4>
+<ul>
+<li>Type: string (executable)</li>
+<li>Default: <code>&lt;sysroot&gt;/bin/fixpoint</code> if it exists, otherwise <code>fixpoint</code> in <code>PATH</code></li>
+<li>Flag: <code>-Ffixpoint</code></li>
+</ul>
+<p>The fixpoint executable. See <a href="#config-relative-paths">config-relative paths</a> for how it is resolved.</p>
 <h4 id="fixpointtimeout"><a class="header" href="#fixpointtimeout"><code>fixpoint.timeout</code></a></h4>
 <ul>
 <li>Type: integer (seconds)</li>
@@ -303,6 +318,23 @@ space-separated string. See <a href="#how-flags-are-combined">how flags are comb
 </ul>
 <p>Timeout for each fixpoint query. If a query doesn't finish in time, fixpoint is killed and an error
 is reported for the item being checked.</p>
+<h3 id="smt"><a class="header" href="#smt"><code>[smt]</code></a></h3>
+<h4 id="smtz3"><a class="header" href="#smtz3"><code>smt.z3</code></a></h4>
+<ul>
+<li>Type: string (executable)</li>
+<li>Default: <code>&lt;sysroot&gt;/bin/z3</code> if it exists, otherwise <code>z3</code> in <code>PATH</code></li>
+<li>Flag: <code>-Fz3</code></li>
+</ul>
+<p>The z3 executable. See <a href="#config-relative-paths">config-relative paths</a> for how it is resolved.
+Setting it requires a version of fixpoint that supports <code>--solver-path</code>.</p>
+<h4 id="smtcvc5"><a class="header" href="#smtcvc5"><code>smt.cvc5</code></a></h4>
+<ul>
+<li>Type: string (executable)</li>
+<li>Default: <code>&lt;sysroot&gt;/bin/cvc5</code> if it exists, otherwise <code>cvc5</code> in <code>PATH</code></li>
+<li>Flag: <code>-Fcvc5</code></li>
+</ul>
+<p>The cvc5 executable. See <a href="#config-relative-paths">config-relative paths</a> for how it is resolved.
+Setting it requires a version of fixpoint that supports <code>--solver-path</code>.</p>
 <h3 id="diagnostics"><a class="header" href="#diagnostics"><code>[diagnostics]</code></a></h3>
 <h4 id="diagnosticsverbose"><a class="header" href="#diagnosticsverbose"><code>diagnostics.verbose</code></a></h4>
 <ul>

@@ -184,9 +184,6 @@ classes of run-time problems.</p>
 to learn how you can use Flux on your Rust code.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="installing-and-running-flux"><a class="header" href="#installing-and-running-flux">Installing and Running Flux</a></h1>
 <p>You can install and then run Flux either on a single file or on an entire crate.</p>
-<h2 id="quick-install-linux--macos"><a class="header" href="#quick-install-linux--macos">Quick Install (Linux / macOS)</a></h2>
-<pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/flux-rs/flux/main/install.sh | bash
-</code></pre>
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
 <li>
@@ -194,32 +191,35 @@ to learn how you can use Flux on your Rust code.</p>
 <p>Rustup is required because Flux needs access to the source code of the Rust compiler, which we grab from rustup.</p>
 </li>
 <li>
-<p><a href="https://github.com/ucsd-progsys/liquid-fixpoint">liquid-fixpoint</a></p>
-<p>Nightly binary builds are avilable on <a href="https://github.com/ucsd-progsys/liquid-fixpoint/releases/tag/nightly">GitHub Releases</a>. If there is no binary available
-for your platform, you will need to <a href="https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install">build it from source</a>.</p>
-</li>
-<li>
-<p><a href="https://github.com/Z3Prover/z3">z3</a> 4.15 or later</p>
-<p>You can download a binary for your platform from <a href="https://github.com/Z3Prover/z3/releases">Z3 GitHub Releases</a>. We recommend downloading the latest version, but older version should also work.</p>
+<p><a href="https://github.com/ucsd-progsys/liquid-fixpoint">liquid-fixpoint</a> and
+<a href="https://github.com/Z3Prover/z3">z3</a> 4.15 or later</p>
+<p>The <a href="guide/install.html#install">installation step</a> downloads both for you on the platforms with prebuilt binaries:
+x86_64 Linux, aarch64 macOS, and x86_64 Windows. On other platforms, install them yourself:
+<a href="https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install">build liquid-fixpoint from source</a>
+and download z3 from <a href="https://github.com/Z3Prover/z3/releases">Z3 GitHub Releases</a>. Make sure that
+the <code>fixpoint</code> and <code>z3</code> binaries are in your <code>$PATH</code>.</p>
 </li>
 </ul>
-<p><strong>Note:</strong>
-Make sure that the <code>liquid-fixpoint</code> and <code>z3</code> binaries are in your <code>$PATH</code>.</p>
 <h2 id="install"><a class="header" href="#install">Install</a></h2>
 <p>The only way to use Flux is to build it from source.</p>
 <p>First you need to clone the repository</p>
 <pre><code class="language-bash">git clone https://github.com/flux-rs/flux
 cd flux
 </code></pre>
-<p>To build the source you need a nightly version of <code>rustc</code>.
-We pin the version using a <a href="https://github.com/flux-rs/flux/blob/main/rust-toolchain.toml">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
-If you are using <code>rustup</code>, no special action is needed as it should install the correct <code>rustc</code> version and components based on the information on that file.</p>
+<p>Flux is built with a specific nightly version of Rust, pinned in the repository's
+<a href="https://github.com/flux-rs/flux/blob/main/rust-toolchain.toml">toolchain file</a>. You don't need to
+install it yourself: <code>rustup</code>
+<a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">reads that file</a> and installs
+that version, together with the components Flux needs, the first time you build.</p>
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
-<pre><code class="language-bash">cargo xtask install
+<pre><code class="language-bash">cargo xtask install --bundle-solvers
 </code></pre>
 <p>This will install the Flux sysroot (the binaries and precompiled libraries) to <code>$HOME/.flux/sysroot</code> and
 link two binaries, <code>flux</code> and <code>cargo-flux</code>, from your cargo home (<code>$HOME/.cargo/bin</code>). These two binaries
-should be used respectively to run Flux on either a single file or on a project using cargo.</p>
+should be used respectively to run Flux on either a single file or on a cargo project.</p>
+<p>With <code>--bundle-solvers</code>, the installation also downloads liquid-fixpoint and z3 into the sysroot if
+there are prebuilt binaries for your platform. Flux looks up any solver that isn't downloaded in your
+<code>$PATH</code>.</p>
 <h2 id="flux-home"><a class="header" href="#flux-home">Flux Home</a></h2>
 <p>The Flux home is the directory <code>$HOME/.flux</code>. Its location can be changed by setting the
 <code>FLUX_HOME</code> environment variable. It contains:</p>
@@ -310,13 +310,14 @@ pub fn inc(x: i32) -&gt; i32 {
 in the output (the output may be empty, but in this case no output is a good
 thing).</p>
 <p>Read <a href="guide/SUMMARY.html#learn">these chapters</a> to learn more about what you specify and verify with <code>flux</code>.</p>
-<h2 id="a-note-about-the-flux-driver-binary"><a class="header" href="#a-note-about-the-flux-driver-binary">A note about the flux-driver binary</a></h2>
-<p>The <code>flux-driver</code> binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
-driver</a>
-(similar to how clippy works) meaning it uses rustc as a library to "drive"
-compilation performing additional analysis along the way. Running the binary
-requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
-hassle you should never execute it directly. Instead, use <code>flux</code> or <code>cargo-flux</code>.</p>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<p>A package is configured in two places:</p>
+<ul>
+<li>The <code>[package.metadata.flux]</code> table in <code>Cargo.toml</code> describes properties of the crate, i.e.,
+<em>what</em> is verified. See <a href="guide/../reference/manifest.html">The Manifest Format</a>.</li>
+<li><code>.flux/config.toml</code> files control <em>how</em> <code>cargo flux</code> runs, e.g., caching, timeouts or extra
+output. See <a href="guide/../reference/config.html">Configuration</a>.</li>
+</ul>
 <h2 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h2>
 <p>This section assumes you have installed <code>cargo-flux</code>.</p>
 <h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
@@ -330,34 +331,6 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
   ]
 }
 </code></pre>
-<p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
-<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<p>A package is configured in two places:</p>
-<ul>
-<li>The <code>[package.metadata.flux]</code> table in <code>Cargo.toml</code> describes properties of the crate, i.e.,
-<em>what</em> is verified. See <a href="guide/../reference/manifest.html">The Manifest Format</a>.</li>
-<li><code>.flux/config.toml</code> files control <em>how</em> <code>cargo flux</code> runs, e.g., caching, timeouts or extra
-output. See <a href="guide/../reference/config.html">Configuration</a>.</li>
-</ul>
-<h3 id="flux-flags"><a class="header" href="#flux-flags">Flux Flags</a></h3>
-<p>The <code>flux</code> binary accepts configuration flags in the format <code>-Fname=value</code>. For boolean flags, the
-<code>value</code> can be one of <code>y</code>, <code>yes</code>, <code>on</code>, <code>true</code>, <code>n</code>, <code>no</code>, <code>off</code>, <code>false</code>. Alternatively, the <code>value</code>
-can be omitted which will default to <code>true</code>. For example, to set the solver to <code>cvc5</code> and enable
-qualifier scraping:</p>
-<pre><code class="language-console">flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
-</code></pre>
-<p>For all available flags, see <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a></p>
-<p>When running <code>cargo flux</code>, flags defined in the <code>FLUXFLAGS</code> environment variable are passed to all
-packages checked by Flux, for example, to print timing information:</p>
-<pre><code class="language-console">FLUXFLAGS="-Ftimings" cargo flux
-</code></pre>
-<p>See <a href="guide/../reference/config.html#how-flags-are-combined">how flags are combined</a> for how these flags
-interact with the manifest and the configuration files.</p>
-<h3 id="verbose-flag"><a class="header" href="#verbose-flag">Verbose Flag</a></h3>
-<p>One particularly useful flag is</p>
-<pre><code class="language-console">FLUXFLAGS="-Fflux-verbose" cargo flux
-</code></pre>
-<p>This will make flux print out a log of what it is upto, e.g. the name of the last function checked. This is helpful, e.g. if flux ICEs (hits an internal error), so you can see <em>which</em> function's code caused the issue, so you might mark it as <code>trusted</code>, so flux can skip checking its body, and hence, live to fight another day...</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="about-flux"><a class="header" href="#about-flux">About Flux</a></h1>
 <img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
 <h2 id="team"><a class="header" href="#team">Team</a></h2>
@@ -9433,7 +9406,12 @@ enabled = true                 # enable fixpoint query caching
 dir = "flux-cache"             # where cache files are saved
 
 [fixpoint]
+path = "fixpoint"              # the fixpoint executable
 timeout = 30                   # timeout in seconds for each fixpoint query
+
+[smt]
+z3 = "z3"                      # the z3 executable
+cvc5 = "cvc5"                  # the cvc5 executable
 
 [diagnostics]
 verbose = false                # more detailed error messages
@@ -9467,6 +9445,9 @@ the manifest.</p>
 <p>Relative paths in a configuration file are resolved against the parent of the directory containing
 the file. For example, <code>cache.dir = "flux-cache"</code> in <code>/my/project/.flux/config.toml</code> resolves to
 <code>/my/project/flux-cache</code>.</p>
+<p>Paths to executables, i.e., <a href="reference/config.html#fixpointpath"><code>fixpoint.path</code></a>, <a href="reference/config.html#smtz3"><code>smt.z3</code></a>, and
+<a href="reference/config.html#smtcvc5"><code>smt.cvc5</code></a>, follow the same rule as cargo's: a name without path separators, e.g.,
+<code>z3</code>, is looked up in <code>PATH</code>, and any other relative path is resolved as above.</p>
 <h2 id="package-overrides"><a class="header" href="#package-overrides">Package overrides</a></h2>
 <p>Settings can be overridden for specific packages with <code>[package.&lt;spec&gt;]</code> tables, similar to cargo's
 <a href="https://doc.rust-lang.org/cargo/reference/profiles.html#overrides">profile overrides</a>. <code>&lt;spec&gt;</code>
@@ -9535,6 +9516,13 @@ space-separated string. See <a href="reference/config.html#how-flags-are-combine
 </ul>
 <p>The directory where cache files are saved.</p>
 <h3 id="fixpoint"><a class="header" href="#fixpoint"><code>[fixpoint]</code></a></h3>
+<h4 id="fixpointpath"><a class="header" href="#fixpointpath"><code>fixpoint.path</code></a></h4>
+<ul>
+<li>Type: string (executable)</li>
+<li>Default: <code>&lt;sysroot&gt;/bin/fixpoint</code> if it exists, otherwise <code>fixpoint</code> in <code>PATH</code></li>
+<li>Flag: <code>-Ffixpoint</code></li>
+</ul>
+<p>The fixpoint executable. See <a href="reference/config.html#config-relative-paths">config-relative paths</a> for how it is resolved.</p>
 <h4 id="fixpointtimeout"><a class="header" href="#fixpointtimeout"><code>fixpoint.timeout</code></a></h4>
 <ul>
 <li>Type: integer (seconds)</li>
@@ -9543,6 +9531,23 @@ space-separated string. See <a href="reference/config.html#how-flags-are-combine
 </ul>
 <p>Timeout for each fixpoint query. If a query doesn't finish in time, fixpoint is killed and an error
 is reported for the item being checked.</p>
+<h3 id="smt"><a class="header" href="#smt"><code>[smt]</code></a></h3>
+<h4 id="smtz3"><a class="header" href="#smtz3"><code>smt.z3</code></a></h4>
+<ul>
+<li>Type: string (executable)</li>
+<li>Default: <code>&lt;sysroot&gt;/bin/z3</code> if it exists, otherwise <code>z3</code> in <code>PATH</code></li>
+<li>Flag: <code>-Fz3</code></li>
+</ul>
+<p>The z3 executable. See <a href="reference/config.html#config-relative-paths">config-relative paths</a> for how it is resolved.
+Setting it requires a version of fixpoint that supports <code>--solver-path</code>.</p>
+<h4 id="smtcvc5"><a class="header" href="#smtcvc5"><code>smt.cvc5</code></a></h4>
+<ul>
+<li>Type: string (executable)</li>
+<li>Default: <code>&lt;sysroot&gt;/bin/cvc5</code> if it exists, otherwise <code>cvc5</code> in <code>PATH</code></li>
+<li>Flag: <code>-Fcvc5</code></li>
+</ul>
+<p>The cvc5 executable. See <a href="reference/config.html#config-relative-paths">config-relative paths</a> for how it is resolved.
+Setting it requires a version of fixpoint that supports <code>--solver-path</code>.</p>
 <h3 id="diagnostics"><a class="header" href="#diagnostics"><code>[diagnostics]</code></a></h3>
 <h4 id="diagnosticsverbose"><a class="header" href="#diagnosticsverbose"><code>diagnostics.verbose</code></a></h4>
 <ul>

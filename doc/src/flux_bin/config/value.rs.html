@@ -83,357 +83,367 @@
 <a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub fn </span>resolve(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Utf8PathBuf {
 <a href=#84 id=84 data-nosnippet>84</a>        <span class="self">self</span>.location.base().join(<span class="kw-2">&amp;</span><span class="self">self</span>.value)
 <a href=#85 id=85 data-nosnippet>85</a>    }
-<a href=#86 id=86 data-nosnippet>86</a>}
-<a href=#87 id=87 data-nosnippet>87</a>
-<a href=#88 id=88 data-nosnippet>88</a><span class="doccomment">/// Name and fields of the struct through which a [`ConfigValue`] hands a value and its location to
-<a href=#89 id=89 data-nosnippet>89</a>/// [`Located`]. They cannot clash with the name of any other struct.
-<a href=#90 id=90 data-nosnippet>90</a></span><span class="kw">const </span>LOCATED: <span class="kw-2">&amp;</span>str = <span class="string">"$__flux_private_Located"</span>;
-<a href=#91 id=91 data-nosnippet>91</a><span class="kw">const </span>VALUE_FIELD: <span class="kw-2">&amp;</span>str = <span class="string">"$__flux_private_value"</span>;
-<a href=#92 id=92 data-nosnippet>92</a><span class="kw">const </span>LOCATION_FIELD: <span class="kw-2">&amp;</span>str = <span class="string">"$__flux_private_location"</span>;
-<a href=#93 id=93 data-nosnippet>93</a>
-<a href=#94 id=94 data-nosnippet>94</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, T: Deserialize&lt;<span class="lifetime">'de</span>&gt;&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Located&lt;T&gt; {
-<a href=#95 id=95 data-nosnippet>95</a>    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
-<a href=#96 id=96 data-nosnippet>96</a>        <span class="kw">struct </span>LocatedVisitor&lt;T&gt;(PhantomData&lt;T&gt;);
+<a href=#86 id=86 data-nosnippet>86</a>
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="doccomment">/// Resolves the path of an executable like cargo does: a name without path separators is kept
+<a href=#88 id=88 data-nosnippet>88</a>    /// as is, to be looked up in `PATH`, and any other path is resolved like [`Located::resolve`].
+<a href=#89 id=89 data-nosnippet>89</a>    </span><span class="kw">pub fn </span>resolve_executable(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Utf8PathBuf {
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">if </span><span class="self">self</span>.value.as_str().contains(std::path::is_separator) {
+<a href=#91 id=91 data-nosnippet>91</a>            <span class="self">self</span>.resolve()
+<a href=#92 id=92 data-nosnippet>92</a>        } <span class="kw">else </span>{
+<a href=#93 id=93 data-nosnippet>93</a>            <span class="self">self</span>.value.clone()
+<a href=#94 id=94 data-nosnippet>94</a>        }
+<a href=#95 id=95 data-nosnippet>95</a>    }
+<a href=#96 id=96 data-nosnippet>96</a>}
 <a href=#97 id=97 data-nosnippet>97</a>
-<a href=#98 id=98 data-nosnippet>98</a>        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, T: Deserialize&lt;<span class="lifetime">'de</span>&gt;&gt; Visitor&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>LocatedVisitor&lt;T&gt; {
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="kw">type </span>Value = Located&lt;T&gt;;
-<a href=#100 id=100 data-nosnippet>100</a>
-<a href=#101 id=101 data-nosnippet>101</a>            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-<a href=#102 id=102 data-nosnippet>102</a>                f.write_str(<span class="string">"a value from a configuration file"</span>)
-<a href=#103 id=103 data-nosnippet>103</a>            }
-<a href=#104 id=104 data-nosnippet>104</a>
-<a href=#105 id=105 data-nosnippet>105</a>            <span class="kw">fn </span>visit_map&lt;A: MapAccess&lt;<span class="lifetime">'de</span>&gt;&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>map: A) -&gt; <span class="prelude-ty">Result</span>&lt;Located&lt;T&gt;, A::Error&gt; {
-<a href=#106 id=106 data-nosnippet>106</a>                <span class="kw">let </span>(<span class="kw">_</span>, value) = map
-<a href=#107 id=107 data-nosnippet>107</a>                    .next_entry::&lt;IgnoredAny, T&gt;()<span class="question-mark">?
-<a href=#108 id=108 data-nosnippet>108</a>                    </span>.ok_or_else(|| de::Error::missing_field(VALUE_FIELD))<span class="question-mark">?</span>;
-<a href=#109 id=109 data-nosnippet>109</a>                <span class="kw">let </span>(<span class="kw">_</span>, (path, start, end)) = map
-<a href=#110 id=110 data-nosnippet>110</a>                    .next_entry::&lt;IgnoredAny, (Utf8PathBuf, usize, usize)&gt;()<span class="question-mark">?
-<a href=#111 id=111 data-nosnippet>111</a>                    </span>.ok_or_else(|| de::Error::missing_field(LOCATION_FIELD))<span class="question-mark">?</span>;
-<a href=#112 id=112 data-nosnippet>112</a>                <span class="prelude-val">Ok</span>(Located { value, location: Location { path, span: start..end } })
+<a href=#98 id=98 data-nosnippet>98</a><span class="doccomment">/// Name and fields of the struct through which a [`ConfigValue`] hands a value and its location to
+<a href=#99 id=99 data-nosnippet>99</a>/// [`Located`]. They cannot clash with the name of any other struct.
+<a href=#100 id=100 data-nosnippet>100</a></span><span class="kw">const </span>LOCATED: <span class="kw-2">&amp;</span>str = <span class="string">"$__flux_private_Located"</span>;
+<a href=#101 id=101 data-nosnippet>101</a><span class="kw">const </span>VALUE_FIELD: <span class="kw-2">&amp;</span>str = <span class="string">"$__flux_private_value"</span>;
+<a href=#102 id=102 data-nosnippet>102</a><span class="kw">const </span>LOCATION_FIELD: <span class="kw-2">&amp;</span>str = <span class="string">"$__flux_private_location"</span>;
+<a href=#103 id=103 data-nosnippet>103</a>
+<a href=#104 id=104 data-nosnippet>104</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, T: Deserialize&lt;<span class="lifetime">'de</span>&gt;&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Located&lt;T&gt; {
+<a href=#105 id=105 data-nosnippet>105</a>    <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">struct </span>LocatedVisitor&lt;T&gt;(PhantomData&lt;T&gt;);
+<a href=#107 id=107 data-nosnippet>107</a>
+<a href=#108 id=108 data-nosnippet>108</a>        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, T: Deserialize&lt;<span class="lifetime">'de</span>&gt;&gt; Visitor&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>LocatedVisitor&lt;T&gt; {
+<a href=#109 id=109 data-nosnippet>109</a>            <span class="kw">type </span>Value = Located&lt;T&gt;;
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a>            <span class="kw">fn </span>expecting(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+<a href=#112 id=112 data-nosnippet>112</a>                f.write_str(<span class="string">"a value from a configuration file"</span>)
 <a href=#113 id=113 data-nosnippet>113</a>            }
-<a href=#114 id=114 data-nosnippet>114</a>        }
-<a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a>        deserializer.deserialize_struct(
-<a href=#117 id=117 data-nosnippet>117</a>            LOCATED,
-<a href=#118 id=118 data-nosnippet>118</a>            <span class="kw-2">&amp;</span>[VALUE_FIELD, LOCATION_FIELD],
-<a href=#119 id=119 data-nosnippet>119</a>            LocatedVisitor(PhantomData),
-<a href=#120 id=120 data-nosnippet>120</a>        )
-<a href=#121 id=121 data-nosnippet>121</a>    }
-<a href=#122 id=122 data-nosnippet>122</a>}
-<a href=#123 id=123 data-nosnippet>123</a>
-<a href=#124 id=124 data-nosnippet>124</a><span class="doccomment">/// An untyped configuration value. Every node remembers its [`Location`].
-<a href=#125 id=125 data-nosnippet>125</a></span><span class="attr">#[derive(Clone, Debug)]
-<a href=#126 id=126 data-nosnippet>126</a></span><span class="kw">pub enum </span>ConfigValue {
-<a href=#127 id=127 data-nosnippet>127</a>    String(String, Location),
-<a href=#128 id=128 data-nosnippet>128</a>    Integer(i64, Location),
-<a href=#129 id=129 data-nosnippet>129</a>    Boolean(bool, Location),
-<a href=#130 id=130 data-nosnippet>130</a>    List(Vec&lt;ConfigValue&gt;, Location),
-<a href=#131 id=131 data-nosnippet>131</a>    Table(BTreeMap&lt;String, ConfigValue&gt;, Location),
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a>            <span class="kw">fn </span>visit_map&lt;A: MapAccess&lt;<span class="lifetime">'de</span>&gt;&gt;(<span class="self">self</span>, <span class="kw-2">mut </span>map: A) -&gt; <span class="prelude-ty">Result</span>&lt;Located&lt;T&gt;, A::Error&gt; {
+<a href=#116 id=116 data-nosnippet>116</a>                <span class="kw">let </span>(<span class="kw">_</span>, value) = map
+<a href=#117 id=117 data-nosnippet>117</a>                    .next_entry::&lt;IgnoredAny, T&gt;()<span class="question-mark">?
+<a href=#118 id=118 data-nosnippet>118</a>                    </span>.ok_or_else(|| de::Error::missing_field(VALUE_FIELD))<span class="question-mark">?</span>;
+<a href=#119 id=119 data-nosnippet>119</a>                <span class="kw">let </span>(<span class="kw">_</span>, (path, start, end)) = map
+<a href=#120 id=120 data-nosnippet>120</a>                    .next_entry::&lt;IgnoredAny, (Utf8PathBuf, usize, usize)&gt;()<span class="question-mark">?
+<a href=#121 id=121 data-nosnippet>121</a>                    </span>.ok_or_else(|| de::Error::missing_field(LOCATION_FIELD))<span class="question-mark">?</span>;
+<a href=#122 id=122 data-nosnippet>122</a>                <span class="prelude-val">Ok</span>(Located { value, location: Location { path, span: start..end } })
+<a href=#123 id=123 data-nosnippet>123</a>            }
+<a href=#124 id=124 data-nosnippet>124</a>        }
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a>        deserializer.deserialize_struct(
+<a href=#127 id=127 data-nosnippet>127</a>            LOCATED,
+<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw-2">&amp;</span>[VALUE_FIELD, LOCATION_FIELD],
+<a href=#129 id=129 data-nosnippet>129</a>            LocatedVisitor(PhantomData),
+<a href=#130 id=130 data-nosnippet>130</a>        )
+<a href=#131 id=131 data-nosnippet>131</a>    }
 <a href=#132 id=132 data-nosnippet>132</a>}
 <a href=#133 id=133 data-nosnippet>133</a>
-<a href=#134 id=134 data-nosnippet>134</a><span class="kw">impl </span>ConfigValue {
-<a href=#135 id=135 data-nosnippet>135</a>    <span class="doccomment">/// Parses a configuration file.
-<a href=#136 id=136 data-nosnippet>136</a>    </span><span class="kw">pub fn </span>parse_file(path: <span class="kw-2">&amp;</span>Utf8Path) -&gt; anyhow::Result&lt;ConfigValue&gt; {
-<a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">let </span>contents =
-<a href=#138 id=138 data-nosnippet>138</a>            fs::read_to_string(path).with_context(|| <span class="macro">format!</span>(<span class="string">"failed to read `{path}`"</span>))<span class="question-mark">?</span>;
-<a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">let </span>table =
-<a href=#140 id=140 data-nosnippet>140</a>            DeTable::parse(<span class="kw-2">&amp;</span>contents).with_context(|| <span class="macro">format!</span>(<span class="string">"failed to parse `{path}`"</span>))<span class="question-mark">?</span>;
-<a href=#141 id=141 data-nosnippet>141</a>        <span class="kw">let </span>location = Location { path: path.to_owned(), span: table.span() };
-<a href=#142 id=142 data-nosnippet>142</a>        <span class="self">Self</span>::from_table(table.into_inner(), location)
-<a href=#143 id=143 data-nosnippet>143</a>    }
-<a href=#144 id=144 data-nosnippet>144</a>
-<a href=#145 id=145 data-nosnippet>145</a>    <span class="kw">fn </span>from_spanned(value: Spanned&lt;DeValue&gt;, path: <span class="kw-2">&amp;</span>Utf8Path) -&gt; anyhow::Result&lt;ConfigValue&gt; {
-<a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">let </span>location = Location { path: path.to_owned(), span: value.span() };
-<a href=#147 id=147 data-nosnippet>147</a>        <span class="prelude-val">Ok</span>(<span class="kw">match </span>value.into_inner() {
-<a href=#148 id=148 data-nosnippet>148</a>            DeValue::String(s) =&gt; ConfigValue::String(s.into_owned(), location),
-<a href=#149 id=149 data-nosnippet>149</a>            DeValue::Integer(i) =&gt; {
-<a href=#150 id=150 data-nosnippet>150</a>                <span class="kw">let </span><span class="prelude-val">Ok</span>(i) = i64::from_str_radix(i.as_str(), i.radix()) <span class="kw">else </span>{
-<a href=#151 id=151 data-nosnippet>151</a>                    <span class="macro">bail!</span>(<span class="string">"{location}: integer out of range"</span>);
-<a href=#152 id=152 data-nosnippet>152</a>                };
-<a href=#153 id=153 data-nosnippet>153</a>                ConfigValue::Integer(i, location)
-<a href=#154 id=154 data-nosnippet>154</a>            }
-<a href=#155 id=155 data-nosnippet>155</a>            DeValue::Boolean(b) =&gt; ConfigValue::Boolean(b, location),
-<a href=#156 id=156 data-nosnippet>156</a>            DeValue::Array(array) =&gt; {
-<a href=#157 id=157 data-nosnippet>157</a>                <span class="kw">let </span>items = array
-<a href=#158 id=158 data-nosnippet>158</a>                    .into_iter()
-<a href=#159 id=159 data-nosnippet>159</a>                    .map(|item| <span class="self">Self</span>::from_spanned(item, path))
-<a href=#160 id=160 data-nosnippet>160</a>                    .collect::&lt;anyhow::Result&lt;<span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
-<a href=#161 id=161 data-nosnippet>161</a>                ConfigValue::List(items, location)
-<a href=#162 id=162 data-nosnippet>162</a>            }
-<a href=#163 id=163 data-nosnippet>163</a>            DeValue::Table(table) =&gt; <span class="self">Self</span>::from_table(table, location)<span class="question-mark">?</span>,
-<a href=#164 id=164 data-nosnippet>164</a>            DeValue::Float(<span class="kw">_</span>) =&gt; <span class="macro">bail!</span>(<span class="string">"{location}: floats are not supported"</span>),
-<a href=#165 id=165 data-nosnippet>165</a>            DeValue::Datetime(<span class="kw">_</span>) =&gt; <span class="macro">bail!</span>(<span class="string">"{location}: dates and times are not supported"</span>),
-<a href=#166 id=166 data-nosnippet>166</a>        })
-<a href=#167 id=167 data-nosnippet>167</a>    }
-<a href=#168 id=168 data-nosnippet>168</a>
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">fn </span>from_table(table: DeTable, location: Location) -&gt; anyhow::Result&lt;ConfigValue&gt; {
-<a href=#170 id=170 data-nosnippet>170</a>        <span class="kw">let </span>entries = table
-<a href=#171 id=171 data-nosnippet>171</a>            .into_iter()
-<a href=#172 id=172 data-nosnippet>172</a>            .map(|(key, value)| {
-<a href=#173 id=173 data-nosnippet>173</a>                <span class="prelude-val">Ok</span>((key.into_inner().into_owned(), <span class="self">Self</span>::from_spanned(value, <span class="kw-2">&amp;</span>location.path)<span class="question-mark">?</span>))
-<a href=#174 id=174 data-nosnippet>174</a>            })
-<a href=#175 id=175 data-nosnippet>175</a>            .collect::&lt;anyhow::Result&lt;<span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
-<a href=#176 id=176 data-nosnippet>176</a>        <span class="prelude-val">Ok</span>(ConfigValue::Table(entries, location))
+<a href=#134 id=134 data-nosnippet>134</a><span class="doccomment">/// An untyped configuration value. Every node remembers its [`Location`].
+<a href=#135 id=135 data-nosnippet>135</a></span><span class="attr">#[derive(Clone, Debug)]
+<a href=#136 id=136 data-nosnippet>136</a></span><span class="kw">pub enum </span>ConfigValue {
+<a href=#137 id=137 data-nosnippet>137</a>    String(String, Location),
+<a href=#138 id=138 data-nosnippet>138</a>    Integer(i64, Location),
+<a href=#139 id=139 data-nosnippet>139</a>    Boolean(bool, Location),
+<a href=#140 id=140 data-nosnippet>140</a>    List(Vec&lt;ConfigValue&gt;, Location),
+<a href=#141 id=141 data-nosnippet>141</a>    Table(BTreeMap&lt;String, ConfigValue&gt;, Location),
+<a href=#142 id=142 data-nosnippet>142</a>}
+<a href=#143 id=143 data-nosnippet>143</a>
+<a href=#144 id=144 data-nosnippet>144</a><span class="kw">impl </span>ConfigValue {
+<a href=#145 id=145 data-nosnippet>145</a>    <span class="doccomment">/// Parses a configuration file.
+<a href=#146 id=146 data-nosnippet>146</a>    </span><span class="kw">pub fn </span>parse_file(path: <span class="kw-2">&amp;</span>Utf8Path) -&gt; anyhow::Result&lt;ConfigValue&gt; {
+<a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">let </span>contents =
+<a href=#148 id=148 data-nosnippet>148</a>            fs::read_to_string(path).with_context(|| <span class="macro">format!</span>(<span class="string">"failed to read `{path}`"</span>))<span class="question-mark">?</span>;
+<a href=#149 id=149 data-nosnippet>149</a>        <span class="kw">let </span>table =
+<a href=#150 id=150 data-nosnippet>150</a>            DeTable::parse(<span class="kw-2">&amp;</span>contents).with_context(|| <span class="macro">format!</span>(<span class="string">"failed to parse `{path}`"</span>))<span class="question-mark">?</span>;
+<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>location = Location { path: path.to_owned(), span: table.span() };
+<a href=#152 id=152 data-nosnippet>152</a>        <span class="self">Self</span>::from_table(table.into_inner(), location)
+<a href=#153 id=153 data-nosnippet>153</a>    }
+<a href=#154 id=154 data-nosnippet>154</a>
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">fn </span>from_spanned(value: Spanned&lt;DeValue&gt;, path: <span class="kw-2">&amp;</span>Utf8Path) -&gt; anyhow::Result&lt;ConfigValue&gt; {
+<a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">let </span>location = Location { path: path.to_owned(), span: value.span() };
+<a href=#157 id=157 data-nosnippet>157</a>        <span class="prelude-val">Ok</span>(<span class="kw">match </span>value.into_inner() {
+<a href=#158 id=158 data-nosnippet>158</a>            DeValue::String(s) =&gt; ConfigValue::String(s.into_owned(), location),
+<a href=#159 id=159 data-nosnippet>159</a>            DeValue::Integer(i) =&gt; {
+<a href=#160 id=160 data-nosnippet>160</a>                <span class="kw">let </span><span class="prelude-val">Ok</span>(i) = i64::from_str_radix(i.as_str(), i.radix()) <span class="kw">else </span>{
+<a href=#161 id=161 data-nosnippet>161</a>                    <span class="macro">bail!</span>(<span class="string">"{location}: integer out of range"</span>);
+<a href=#162 id=162 data-nosnippet>162</a>                };
+<a href=#163 id=163 data-nosnippet>163</a>                ConfigValue::Integer(i, location)
+<a href=#164 id=164 data-nosnippet>164</a>            }
+<a href=#165 id=165 data-nosnippet>165</a>            DeValue::Boolean(b) =&gt; ConfigValue::Boolean(b, location),
+<a href=#166 id=166 data-nosnippet>166</a>            DeValue::Array(array) =&gt; {
+<a href=#167 id=167 data-nosnippet>167</a>                <span class="kw">let </span>items = array
+<a href=#168 id=168 data-nosnippet>168</a>                    .into_iter()
+<a href=#169 id=169 data-nosnippet>169</a>                    .map(|item| <span class="self">Self</span>::from_spanned(item, path))
+<a href=#170 id=170 data-nosnippet>170</a>                    .collect::&lt;anyhow::Result&lt;<span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+<a href=#171 id=171 data-nosnippet>171</a>                ConfigValue::List(items, location)
+<a href=#172 id=172 data-nosnippet>172</a>            }
+<a href=#173 id=173 data-nosnippet>173</a>            DeValue::Table(table) =&gt; <span class="self">Self</span>::from_table(table, location)<span class="question-mark">?</span>,
+<a href=#174 id=174 data-nosnippet>174</a>            DeValue::Float(<span class="kw">_</span>) =&gt; <span class="macro">bail!</span>(<span class="string">"{location}: floats are not supported"</span>),
+<a href=#175 id=175 data-nosnippet>175</a>            DeValue::Datetime(<span class="kw">_</span>) =&gt; <span class="macro">bail!</span>(<span class="string">"{location}: dates and times are not supported"</span>),
+<a href=#176 id=176 data-nosnippet>176</a>        })
 <a href=#177 id=177 data-nosnippet>177</a>    }
 <a href=#178 id=178 data-nosnippet>178</a>
-<a href=#179 id=179 data-nosnippet>179</a>    <span class="kw">pub fn </span>location(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Location {
-<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#181 id=181 data-nosnippet>181</a>            ConfigValue::String(<span class="kw">_</span>, location)
-<a href=#182 id=182 data-nosnippet>182</a>            | ConfigValue::Integer(<span class="kw">_</span>, location)
-<a href=#183 id=183 data-nosnippet>183</a>            | ConfigValue::Boolean(<span class="kw">_</span>, location)
-<a href=#184 id=184 data-nosnippet>184</a>            | ConfigValue::List(<span class="kw">_</span>, location)
-<a href=#185 id=185 data-nosnippet>185</a>            | ConfigValue::Table(<span class="kw">_</span>, location) =&gt; location,
-<a href=#186 id=186 data-nosnippet>186</a>        }
+<a href=#179 id=179 data-nosnippet>179</a>    <span class="kw">fn </span>from_table(table: DeTable, location: Location) -&gt; anyhow::Result&lt;ConfigValue&gt; {
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">let </span>entries = table
+<a href=#181 id=181 data-nosnippet>181</a>            .into_iter()
+<a href=#182 id=182 data-nosnippet>182</a>            .map(|(key, value)| {
+<a href=#183 id=183 data-nosnippet>183</a>                <span class="prelude-val">Ok</span>((key.into_inner().into_owned(), <span class="self">Self</span>::from_spanned(value, <span class="kw-2">&amp;</span>location.path)<span class="question-mark">?</span>))
+<a href=#184 id=184 data-nosnippet>184</a>            })
+<a href=#185 id=185 data-nosnippet>185</a>            .collect::&lt;anyhow::Result&lt;<span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
+<a href=#186 id=186 data-nosnippet>186</a>        <span class="prelude-val">Ok</span>(ConfigValue::Table(entries, location))
 <a href=#187 id=187 data-nosnippet>187</a>    }
 <a href=#188 id=188 data-nosnippet>188</a>
-<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">pub fn </span>location(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Location {
 <a href=#190 id=190 data-nosnippet>190</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#191 id=191 data-nosnippet>191</a>            ConfigValue::Table(..) =&gt; <span class="string">"a table"</span>,
-<a href=#192 id=192 data-nosnippet>192</a>            ConfigValue::List(..) =&gt; <span class="string">"an array"</span>,
-<a href=#193 id=193 data-nosnippet>193</a>            <span class="kw">_ </span>=&gt; <span class="string">"a value"</span>,
-<a href=#194 id=194 data-nosnippet>194</a>        }
-<a href=#195 id=195 data-nosnippet>195</a>    }
-<a href=#196 id=196 data-nosnippet>196</a>
-<a href=#197 id=197 data-nosnippet>197</a>    <span class="doccomment">/// Removes `key` if `self` is a table.
-<a href=#198 id=198 data-nosnippet>198</a>    </span><span class="kw">pub fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;ConfigValue&gt; {
-<a href=#199 id=199 data-nosnippet>199</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#200 id=200 data-nosnippet>200</a>            ConfigValue::Table(entries, <span class="kw">_</span>) =&gt; entries.remove(key),
-<a href=#201 id=201 data-nosnippet>201</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#202 id=202 data-nosnippet>202</a>        }
-<a href=#203 id=203 data-nosnippet>203</a>    }
-<a href=#204 id=204 data-nosnippet>204</a>
-<a href=#205 id=205 data-nosnippet>205</a>    <span class="doccomment">/// Merges values ordered from lowest to highest precedence. Returns `None` if there are none.
-<a href=#206 id=206 data-nosnippet>206</a>    </span><span class="kw">pub fn </span>merge_all(
-<a href=#207 id=207 data-nosnippet>207</a>        values: <span class="kw">impl </span>IntoIterator&lt;Item = ConfigValue&gt;,
-<a href=#208 id=208 data-nosnippet>208</a>    ) -&gt; anyhow::Result&lt;<span class="prelude-ty">Option</span>&lt;ConfigValue&gt;&gt; {
-<a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">let </span><span class="kw-2">mut </span>merged: <span class="prelude-ty">Option</span>&lt;ConfigValue&gt; = <span class="prelude-val">None</span>;
-<a href=#210 id=210 data-nosnippet>210</a>        <span class="kw">for </span>value <span class="kw">in </span>values {
-<a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">match </span><span class="kw-2">&amp;mut </span>merged {
-<a href=#212 id=212 data-nosnippet>212</a>                <span class="prelude-val">Some</span>(merged) =&gt; merged.merge(value, <span class="string">""</span>)<span class="question-mark">?</span>,
-<a href=#213 id=213 data-nosnippet>213</a>                <span class="prelude-val">None </span>=&gt; merged = <span class="prelude-val">Some</span>(value),
-<a href=#214 id=214 data-nosnippet>214</a>            }
-<a href=#215 id=215 data-nosnippet>215</a>        }
-<a href=#216 id=216 data-nosnippet>216</a>        <span class="prelude-val">Ok</span>(merged)
-<a href=#217 id=217 data-nosnippet>217</a>    }
-<a href=#218 id=218 data-nosnippet>218</a>
-<a href=#219 id=219 data-nosnippet>219</a>    <span class="doccomment">/// Merges `src` into `self`, where `src` has higher precedence. Tables are merged key by key,
-<a href=#220 id=220 data-nosnippet>220</a>    /// arrays are concatenated, and any other value is replaced.
-<a href=#221 id=221 data-nosnippet>221</a>    </span><span class="kw">fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: ConfigValue, key: <span class="kw-2">&amp;</span>str) -&gt; anyhow::Result&lt;()&gt; {
-<a href=#222 id=222 data-nosnippet>222</a>        <span class="kw">match </span>(<span class="self">self</span>, src) {
-<a href=#223 id=223 data-nosnippet>223</a>            (ConfigValue::Table(dst, <span class="kw">_</span>), ConfigValue::Table(src, <span class="kw">_</span>)) =&gt; {
-<a href=#224 id=224 data-nosnippet>224</a>                <span class="kw">for </span>(src_key, src_value) <span class="kw">in </span>src {
-<a href=#225 id=225 data-nosnippet>225</a>                    <span class="kw">let </span>full_key =
-<a href=#226 id=226 data-nosnippet>226</a>                        <span class="kw">if </span>key.is_empty() { src_key.clone() } <span class="kw">else </span>{ <span class="macro">format!</span>(<span class="string">"{key}.{src_key}"</span>) };
-<a href=#227 id=227 data-nosnippet>227</a>                    <span class="kw">match </span>dst.get_mut(<span class="kw-2">&amp;</span>src_key) {
-<a href=#228 id=228 data-nosnippet>228</a>                        <span class="prelude-val">Some</span>(dst_value) =&gt; dst_value.merge(src_value, <span class="kw-2">&amp;</span>full_key)<span class="question-mark">?</span>,
-<a href=#229 id=229 data-nosnippet>229</a>                        <span class="prelude-val">None </span>=&gt; {
-<a href=#230 id=230 data-nosnippet>230</a>                            dst.insert(src_key, src_value);
-<a href=#231 id=231 data-nosnippet>231</a>                        }
-<a href=#232 id=232 data-nosnippet>232</a>                    }
-<a href=#233 id=233 data-nosnippet>233</a>                }
-<a href=#234 id=234 data-nosnippet>234</a>            }
-<a href=#235 id=235 data-nosnippet>235</a>            (ConfigValue::List(dst, <span class="kw">_</span>), ConfigValue::List(src, <span class="kw">_</span>)) =&gt; dst.extend(src),
-<a href=#236 id=236 data-nosnippet>236</a>            (dst, src) <span class="kw">if </span>dst.kind() == src.kind() =&gt; <span class="kw-2">*</span>dst = src,
-<a href=#237 id=237 data-nosnippet>237</a>            (dst, src) =&gt; {
-<a href=#238 id=238 data-nosnippet>238</a>                <span class="macro">bail!</span>(
-<a href=#239 id=239 data-nosnippet>239</a>                    <span class="string">"`{key}` is {} in {} but {} in {}"</span>,
-<a href=#240 id=240 data-nosnippet>240</a>                    dst.kind(),
-<a href=#241 id=241 data-nosnippet>241</a>                    dst.location(),
-<a href=#242 id=242 data-nosnippet>242</a>                    src.kind(),
-<a href=#243 id=243 data-nosnippet>243</a>                    src.location()
-<a href=#244 id=244 data-nosnippet>244</a>                );
-<a href=#245 id=245 data-nosnippet>245</a>            }
-<a href=#246 id=246 data-nosnippet>246</a>        }
-<a href=#247 id=247 data-nosnippet>247</a>        <span class="prelude-val">Ok</span>(())
-<a href=#248 id=248 data-nosnippet>248</a>    }
-<a href=#249 id=249 data-nosnippet>249</a>
-<a href=#250 id=250 data-nosnippet>250</a>    <span class="doccomment">/// Deserializes the value into `T`.
-<a href=#251 id=251 data-nosnippet>251</a>    </span><span class="kw">pub fn </span>deserialize_into&lt;T: DeserializeOwned&gt;(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;T, ConfigError&gt; {
-<a href=#252 id=252 data-nosnippet>252</a>        <span class="kw">let </span>location = <span class="self">self</span>.location().clone();
-<a href=#253 id=253 data-nosnippet>253</a>        T::deserialize(<span class="self">self</span>).map_err(|err| err.at_location(<span class="kw-2">&amp;</span>location))
-<a href=#254 id=254 data-nosnippet>254</a>    }
-<a href=#255 id=255 data-nosnippet>255</a>}
-<a href=#256 id=256 data-nosnippet>256</a>
-<a href=#257 id=257 data-nosnippet>257</a><span class="doccomment">/// An error deserializing a [`ConfigValue`].
-<a href=#258 id=258 data-nosnippet>258</a></span><span class="attr">#[derive(Debug)]
-<a href=#259 id=259 data-nosnippet>259</a></span><span class="kw">pub struct </span>ConfigError {
-<a href=#260 id=260 data-nosnippet>260</a>    message: String,
-<a href=#261 id=261 data-nosnippet>261</a>    <span class="doccomment">/// Keys leading to the value that caused the error, outermost first.
-<a href=#262 id=262 data-nosnippet>262</a>    </span>keys: Vec&lt;String&gt;,
-<a href=#263 id=263 data-nosnippet>263</a>    <span class="doccomment">/// Location of the value that caused the error.
-<a href=#264 id=264 data-nosnippet>264</a>    </span>location: <span class="prelude-ty">Option</span>&lt;Location&gt;,
+<a href=#191 id=191 data-nosnippet>191</a>            ConfigValue::String(<span class="kw">_</span>, location)
+<a href=#192 id=192 data-nosnippet>192</a>            | ConfigValue::Integer(<span class="kw">_</span>, location)
+<a href=#193 id=193 data-nosnippet>193</a>            | ConfigValue::Boolean(<span class="kw">_</span>, location)
+<a href=#194 id=194 data-nosnippet>194</a>            | ConfigValue::List(<span class="kw">_</span>, location)
+<a href=#195 id=195 data-nosnippet>195</a>            | ConfigValue::Table(<span class="kw">_</span>, location) =&gt; location,
+<a href=#196 id=196 data-nosnippet>196</a>        }
+<a href=#197 id=197 data-nosnippet>197</a>    }
+<a href=#198 id=198 data-nosnippet>198</a>
+<a href=#199 id=199 data-nosnippet>199</a>    <span class="kw">fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#200 id=200 data-nosnippet>200</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#201 id=201 data-nosnippet>201</a>            ConfigValue::Table(..) =&gt; <span class="string">"a table"</span>,
+<a href=#202 id=202 data-nosnippet>202</a>            ConfigValue::List(..) =&gt; <span class="string">"an array"</span>,
+<a href=#203 id=203 data-nosnippet>203</a>            <span class="kw">_ </span>=&gt; <span class="string">"a value"</span>,
+<a href=#204 id=204 data-nosnippet>204</a>        }
+<a href=#205 id=205 data-nosnippet>205</a>    }
+<a href=#206 id=206 data-nosnippet>206</a>
+<a href=#207 id=207 data-nosnippet>207</a>    <span class="doccomment">/// Removes `key` if `self` is a table.
+<a href=#208 id=208 data-nosnippet>208</a>    </span><span class="kw">pub fn </span>remove(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;ConfigValue&gt; {
+<a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#210 id=210 data-nosnippet>210</a>            ConfigValue::Table(entries, <span class="kw">_</span>) =&gt; entries.remove(key),
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#212 id=212 data-nosnippet>212</a>        }
+<a href=#213 id=213 data-nosnippet>213</a>    }
+<a href=#214 id=214 data-nosnippet>214</a>
+<a href=#215 id=215 data-nosnippet>215</a>    <span class="doccomment">/// Merges values ordered from lowest to highest precedence. Returns `None` if there are none.
+<a href=#216 id=216 data-nosnippet>216</a>    </span><span class="kw">pub fn </span>merge_all(
+<a href=#217 id=217 data-nosnippet>217</a>        values: <span class="kw">impl </span>IntoIterator&lt;Item = ConfigValue&gt;,
+<a href=#218 id=218 data-nosnippet>218</a>    ) -&gt; anyhow::Result&lt;<span class="prelude-ty">Option</span>&lt;ConfigValue&gt;&gt; {
+<a href=#219 id=219 data-nosnippet>219</a>        <span class="kw">let </span><span class="kw-2">mut </span>merged: <span class="prelude-ty">Option</span>&lt;ConfigValue&gt; = <span class="prelude-val">None</span>;
+<a href=#220 id=220 data-nosnippet>220</a>        <span class="kw">for </span>value <span class="kw">in </span>values {
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">match </span><span class="kw-2">&amp;mut </span>merged {
+<a href=#222 id=222 data-nosnippet>222</a>                <span class="prelude-val">Some</span>(merged) =&gt; merged.merge(value, <span class="string">""</span>)<span class="question-mark">?</span>,
+<a href=#223 id=223 data-nosnippet>223</a>                <span class="prelude-val">None </span>=&gt; merged = <span class="prelude-val">Some</span>(value),
+<a href=#224 id=224 data-nosnippet>224</a>            }
+<a href=#225 id=225 data-nosnippet>225</a>        }
+<a href=#226 id=226 data-nosnippet>226</a>        <span class="prelude-val">Ok</span>(merged)
+<a href=#227 id=227 data-nosnippet>227</a>    }
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="doccomment">/// Merges `src` into `self`, where `src` has higher precedence. Tables are merged key by key,
+<a href=#230 id=230 data-nosnippet>230</a>    /// arrays are concatenated, and any other value is replaced.
+<a href=#231 id=231 data-nosnippet>231</a>    </span><span class="kw">fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: ConfigValue, key: <span class="kw-2">&amp;</span>str) -&gt; anyhow::Result&lt;()&gt; {
+<a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">match </span>(<span class="self">self</span>, src) {
+<a href=#233 id=233 data-nosnippet>233</a>            (ConfigValue::Table(dst, <span class="kw">_</span>), ConfigValue::Table(src, <span class="kw">_</span>)) =&gt; {
+<a href=#234 id=234 data-nosnippet>234</a>                <span class="kw">for </span>(src_key, src_value) <span class="kw">in </span>src {
+<a href=#235 id=235 data-nosnippet>235</a>                    <span class="kw">let </span>full_key =
+<a href=#236 id=236 data-nosnippet>236</a>                        <span class="kw">if </span>key.is_empty() { src_key.clone() } <span class="kw">else </span>{ <span class="macro">format!</span>(<span class="string">"{key}.{src_key}"</span>) };
+<a href=#237 id=237 data-nosnippet>237</a>                    <span class="kw">match </span>dst.get_mut(<span class="kw-2">&amp;</span>src_key) {
+<a href=#238 id=238 data-nosnippet>238</a>                        <span class="prelude-val">Some</span>(dst_value) =&gt; dst_value.merge(src_value, <span class="kw-2">&amp;</span>full_key)<span class="question-mark">?</span>,
+<a href=#239 id=239 data-nosnippet>239</a>                        <span class="prelude-val">None </span>=&gt; {
+<a href=#240 id=240 data-nosnippet>240</a>                            dst.insert(src_key, src_value);
+<a href=#241 id=241 data-nosnippet>241</a>                        }
+<a href=#242 id=242 data-nosnippet>242</a>                    }
+<a href=#243 id=243 data-nosnippet>243</a>                }
+<a href=#244 id=244 data-nosnippet>244</a>            }
+<a href=#245 id=245 data-nosnippet>245</a>            (ConfigValue::List(dst, <span class="kw">_</span>), ConfigValue::List(src, <span class="kw">_</span>)) =&gt; dst.extend(src),
+<a href=#246 id=246 data-nosnippet>246</a>            (dst, src) <span class="kw">if </span>dst.kind() == src.kind() =&gt; <span class="kw-2">*</span>dst = src,
+<a href=#247 id=247 data-nosnippet>247</a>            (dst, src) =&gt; {
+<a href=#248 id=248 data-nosnippet>248</a>                <span class="macro">bail!</span>(
+<a href=#249 id=249 data-nosnippet>249</a>                    <span class="string">"`{key}` is {} in {} but {} in {}"</span>,
+<a href=#250 id=250 data-nosnippet>250</a>                    dst.kind(),
+<a href=#251 id=251 data-nosnippet>251</a>                    dst.location(),
+<a href=#252 id=252 data-nosnippet>252</a>                    src.kind(),
+<a href=#253 id=253 data-nosnippet>253</a>                    src.location()
+<a href=#254 id=254 data-nosnippet>254</a>                );
+<a href=#255 id=255 data-nosnippet>255</a>            }
+<a href=#256 id=256 data-nosnippet>256</a>        }
+<a href=#257 id=257 data-nosnippet>257</a>        <span class="prelude-val">Ok</span>(())
+<a href=#258 id=258 data-nosnippet>258</a>    }
+<a href=#259 id=259 data-nosnippet>259</a>
+<a href=#260 id=260 data-nosnippet>260</a>    <span class="doccomment">/// Deserializes the value into `T`.
+<a href=#261 id=261 data-nosnippet>261</a>    </span><span class="kw">pub fn </span>deserialize_into&lt;T: DeserializeOwned&gt;(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;T, ConfigError&gt; {
+<a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">let </span>location = <span class="self">self</span>.location().clone();
+<a href=#263 id=263 data-nosnippet>263</a>        T::deserialize(<span class="self">self</span>).map_err(|err| err.at_location(<span class="kw-2">&amp;</span>location))
+<a href=#264 id=264 data-nosnippet>264</a>    }
 <a href=#265 id=265 data-nosnippet>265</a>}
 <a href=#266 id=266 data-nosnippet>266</a>
-<a href=#267 id=267 data-nosnippet>267</a><span class="kw">impl </span>ConfigError {
-<a href=#268 id=268 data-nosnippet>268</a>    <span class="doccomment">/// Records that the error happened inside the value of `key`.
-<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="kw">fn </span>in_key(<span class="kw-2">mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
-<a href=#270 id=270 data-nosnippet>270</a>        <span class="self">self</span>.keys.insert(<span class="number">0</span>, key.to_owned());
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="self">self
-<a href=#272 id=272 data-nosnippet>272</a>    </span>}
-<a href=#273 id=273 data-nosnippet>273</a>
-<a href=#274 id=274 data-nosnippet>274</a>    <span class="doccomment">/// Records the location of the error unless a more precise one is already known.
-<a href=#275 id=275 data-nosnippet>275</a>    </span><span class="kw">fn </span>at_location(<span class="kw-2">mut </span><span class="self">self</span>, location: <span class="kw-2">&amp;</span>Location) -&gt; <span class="self">Self </span>{
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="self">self</span>.location.get_or_insert_with(|| location.clone());
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="self">self
-<a href=#278 id=278 data-nosnippet>278</a>    </span>}
-<a href=#279 id=279 data-nosnippet>279</a>}
-<a href=#280 id=280 data-nosnippet>280</a>
-<a href=#281 id=281 data-nosnippet>281</a><span class="kw">impl </span>de::Error <span class="kw">for </span>ConfigError {
-<a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">fn </span>custom&lt;T: fmt::Display&gt;(msg: T) -&gt; <span class="self">Self </span>{
-<a href=#283 id=283 data-nosnippet>283</a>        ConfigError { message: msg.to_string(), keys: <span class="macro">vec!</span>[], location: <span class="prelude-val">None </span>}
-<a href=#284 id=284 data-nosnippet>284</a>    }
-<a href=#285 id=285 data-nosnippet>285</a>}
-<a href=#286 id=286 data-nosnippet>286</a>
-<a href=#287 id=287 data-nosnippet>287</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigError {
-<a href=#288 id=288 data-nosnippet>288</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(location) = <span class="kw-2">&amp;</span><span class="self">self</span>.location {
-<a href=#290 id=290 data-nosnippet>290</a>            <span class="macro">write!</span>(f, <span class="string">"{location}: "</span>)<span class="question-mark">?</span>;
-<a href=#291 id=291 data-nosnippet>291</a>        }
-<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">if </span>!<span class="self">self</span>.keys.is_empty() {
-<a href=#293 id=293 data-nosnippet>293</a>            <span class="macro">write!</span>(f, <span class="string">"`{}`: "</span>, <span class="self">self</span>.keys.join(<span class="string">"."</span>))<span class="question-mark">?</span>;
-<a href=#294 id=294 data-nosnippet>294</a>        }
-<a href=#295 id=295 data-nosnippet>295</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.message)
-<a href=#296 id=296 data-nosnippet>296</a>    }
-<a href=#297 id=297 data-nosnippet>297</a>}
-<a href=#298 id=298 data-nosnippet>298</a>
-<a href=#299 id=299 data-nosnippet>299</a><span class="kw">impl </span>std::error::Error <span class="kw">for </span>ConfigError {}
-<a href=#300 id=300 data-nosnippet>300</a>
-<a href=#301 id=301 data-nosnippet>301</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserializer&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>ConfigValue {
-<a href=#302 id=302 data-nosnippet>302</a>    <span class="kw">type </span>Error = ConfigError;
-<a href=#303 id=303 data-nosnippet>303</a>
-<a href=#304 id=304 data-nosnippet>304</a>    <span class="kw">fn </span>deserialize_any&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(<span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
-<a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#306 id=306 data-nosnippet>306</a>            ConfigValue::String(s, <span class="kw">_</span>) =&gt; visitor.visit_string(s),
-<a href=#307 id=307 data-nosnippet>307</a>            ConfigValue::Integer(i, <span class="kw">_</span>) =&gt; visitor.visit_i64(i),
-<a href=#308 id=308 data-nosnippet>308</a>            ConfigValue::Boolean(b, <span class="kw">_</span>) =&gt; visitor.visit_bool(b),
-<a href=#309 id=309 data-nosnippet>309</a>            ConfigValue::List(items, <span class="kw">_</span>) =&gt; {
-<a href=#310 id=310 data-nosnippet>310</a>                visitor.visit_seq(ListAccess { items: items.into_iter() })
-<a href=#311 id=311 data-nosnippet>311</a>            }
-<a href=#312 id=312 data-nosnippet>312</a>            ConfigValue::Table(entries, <span class="kw">_</span>) =&gt; {
-<a href=#313 id=313 data-nosnippet>313</a>                visitor.visit_map(TableAccess { entries: entries.into_iter(), value: <span class="prelude-val">None </span>})
-<a href=#314 id=314 data-nosnippet>314</a>            }
-<a href=#315 id=315 data-nosnippet>315</a>        }
-<a href=#316 id=316 data-nosnippet>316</a>    }
-<a href=#317 id=317 data-nosnippet>317</a>
-<a href=#318 id=318 data-nosnippet>318</a>    <span class="kw">fn </span>deserialize_option&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(<span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="comment">// Missing keys never get here, they are handled by `#[serde(default)]`
-<a href=#320 id=320 data-nosnippet>320</a>        </span>visitor.visit_some(<span class="self">self</span>)
-<a href=#321 id=321 data-nosnippet>321</a>    }
-<a href=#322 id=322 data-nosnippet>322</a>
-<a href=#323 id=323 data-nosnippet>323</a>    <span class="kw">fn </span>deserialize_newtype_struct&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(
-<a href=#324 id=324 data-nosnippet>324</a>        <span class="self">self</span>,
-<a href=#325 id=325 data-nosnippet>325</a>        _name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#326 id=326 data-nosnippet>326</a>        visitor: V,
-<a href=#327 id=327 data-nosnippet>327</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
-<a href=#328 id=328 data-nosnippet>328</a>        visitor.visit_newtype_struct(<span class="self">self</span>)
-<a href=#329 id=329 data-nosnippet>329</a>    }
-<a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>    <span class="kw">fn </span>deserialize_enum&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(
-<a href=#332 id=332 data-nosnippet>332</a>        <span class="self">self</span>,
-<a href=#333 id=333 data-nosnippet>333</a>        _name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#334 id=334 data-nosnippet>334</a>        _variants: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str],
-<a href=#335 id=335 data-nosnippet>335</a>        visitor: V,
-<a href=#336 id=336 data-nosnippet>336</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
-<a href=#337 id=337 data-nosnippet>337</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#338 id=338 data-nosnippet>338</a>            ConfigValue::String(s, <span class="kw">_</span>) =&gt; visitor.visit_enum(s.into_deserializer()),
-<a href=#339 id=339 data-nosnippet>339</a>            value =&gt; value.deserialize_any(visitor),
-<a href=#340 id=340 data-nosnippet>340</a>        }
-<a href=#341 id=341 data-nosnippet>341</a>    }
-<a href=#342 id=342 data-nosnippet>342</a>
-<a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">fn </span>deserialize_struct&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="self">self</span>,
-<a href=#345 id=345 data-nosnippet>345</a>        name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#346 id=346 data-nosnippet>346</a>        _fields: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str],
-<a href=#347 id=347 data-nosnippet>347</a>        visitor: V,
-<a href=#348 id=348 data-nosnippet>348</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
-<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">if </span>name == LOCATED {
-<a href=#350 id=350 data-nosnippet>350</a>            <span class="comment">// Hand the location to `Located` as a `(path, start, end)` tuple
-<a href=#351 id=351 data-nosnippet>351</a>            </span><span class="kw">let </span>location = <span class="self">self</span>.location().clone();
-<a href=#352 id=352 data-nosnippet>352</a>            <span class="kw">let </span>encoded = ConfigValue::List(
-<a href=#353 id=353 data-nosnippet>353</a>                <span class="macro">vec!</span>[
-<a href=#354 id=354 data-nosnippet>354</a>                    ConfigValue::String(location.path.to_string(), location.clone()),
-<a href=#355 id=355 data-nosnippet>355</a>                    ConfigValue::Integer(location.span.start <span class="kw">as </span>i64, location.clone()),
-<a href=#356 id=356 data-nosnippet>356</a>                    ConfigValue::Integer(location.span.end <span class="kw">as </span>i64, location.clone()),
-<a href=#357 id=357 data-nosnippet>357</a>                ],
-<a href=#358 id=358 data-nosnippet>358</a>                location,
-<a href=#359 id=359 data-nosnippet>359</a>            );
-<a href=#360 id=360 data-nosnippet>360</a>            <span class="kw">let </span>fields = [(VALUE_FIELD, <span class="self">self</span>), (LOCATION_FIELD, encoded)];
-<a href=#361 id=361 data-nosnippet>361</a>            <span class="kw">return </span>visitor.visit_map(MapDeserializer::new(fields.into_iter()));
-<a href=#362 id=362 data-nosnippet>362</a>        }
-<a href=#363 id=363 data-nosnippet>363</a>        <span class="self">self</span>.deserialize_any(visitor)
-<a href=#364 id=364 data-nosnippet>364</a>    }
-<a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a>    <span class="macro">forward_to_deserialize_any!</span> {
-<a href=#367 id=367 data-nosnippet>367</a>        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string bytes byte_buf unit
-<a href=#368 id=368 data-nosnippet>368</a>        unit_struct seq tuple tuple_struct map identifier ignored_any
-<a href=#369 id=369 data-nosnippet>369</a>    }
-<a href=#370 id=370 data-nosnippet>370</a>}
-<a href=#371 id=371 data-nosnippet>371</a>
-<a href=#372 id=372 data-nosnippet>372</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; IntoDeserializer&lt;<span class="lifetime">'de</span>, ConfigError&gt; <span class="kw">for </span>ConfigValue {
-<a href=#373 id=373 data-nosnippet>373</a>    <span class="kw">type </span>Deserializer = <span class="self">Self</span>;
-<a href=#374 id=374 data-nosnippet>374</a>
-<a href=#375 id=375 data-nosnippet>375</a>    <span class="kw">fn </span>into_deserializer(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
-<a href=#376 id=376 data-nosnippet>376</a>        <span class="self">self
-<a href=#377 id=377 data-nosnippet>377</a>    </span>}
-<a href=#378 id=378 data-nosnippet>378</a>}
-<a href=#379 id=379 data-nosnippet>379</a>
-<a href=#380 id=380 data-nosnippet>380</a><span class="kw">struct </span>TableAccess {
-<a href=#381 id=381 data-nosnippet>381</a>    entries: btree_map::IntoIter&lt;String, ConfigValue&gt;,
-<a href=#382 id=382 data-nosnippet>382</a>    <span class="doccomment">/// The entry whose key was deserialized last.
-<a href=#383 id=383 data-nosnippet>383</a>    </span>value: <span class="prelude-ty">Option</span>&lt;(String, ConfigValue)&gt;,
-<a href=#384 id=384 data-nosnippet>384</a>}
-<a href=#385 id=385 data-nosnippet>385</a>
-<a href=#386 id=386 data-nosnippet>386</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; MapAccess&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>TableAccess {
-<a href=#387 id=387 data-nosnippet>387</a>    <span class="kw">type </span>Error = ConfigError;
-<a href=#388 id=388 data-nosnippet>388</a>
-<a href=#389 id=389 data-nosnippet>389</a>    <span class="kw">fn </span>next_key_seed&lt;K: DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;&gt;(
-<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#391 id=391 data-nosnippet>391</a>        seed: K,
-<a href=#392 id=392 data-nosnippet>392</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;K::Value&gt;, ConfigError&gt; {
-<a href=#393 id=393 data-nosnippet>393</a>        <span class="kw">let </span><span class="prelude-val">Some</span>((key, value)) = <span class="self">self</span>.entries.next() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-<a href=#394 id=394 data-nosnippet>394</a>        <span class="kw">let </span>deserializer: StrDeserializer&lt;ConfigError&gt; = key.as_str().into_deserializer();
-<a href=#395 id=395 data-nosnippet>395</a>        <span class="comment">// An unknown key is reported at the location of its value
-<a href=#396 id=396 data-nosnippet>396</a>        </span><span class="kw">let </span>result = seed
-<a href=#397 id=397 data-nosnippet>397</a>            .deserialize(deserializer)
-<a href=#398 id=398 data-nosnippet>398</a>            .map_err(|err| err.at_location(value.location()));
-<a href=#399 id=399 data-nosnippet>399</a>        <span class="self">self</span>.value = <span class="prelude-val">Some</span>((key, value));
-<a href=#400 id=400 data-nosnippet>400</a>        result.map(<span class="prelude-val">Some</span>)
-<a href=#401 id=401 data-nosnippet>401</a>    }
-<a href=#402 id=402 data-nosnippet>402</a>
-<a href=#403 id=403 data-nosnippet>403</a>    <span class="kw">fn </span>next_value_seed&lt;V: DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;&gt;(
-<a href=#404 id=404 data-nosnippet>404</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#405 id=405 data-nosnippet>405</a>        seed: V,
-<a href=#406 id=406 data-nosnippet>406</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
-<a href=#407 id=407 data-nosnippet>407</a>        <span class="kw">let </span>(key, value) = <span class="self">self
-<a href=#408 id=408 data-nosnippet>408</a>            </span>.value
-<a href=#409 id=409 data-nosnippet>409</a>            .take()
-<a href=#410 id=410 data-nosnippet>410</a>            .expect(<span class="string">"`next_value_seed` called before `next_key_seed`"</span>);
-<a href=#411 id=411 data-nosnippet>411</a>        <span class="kw">let </span>location = value.location().clone();
-<a href=#412 id=412 data-nosnippet>412</a>        seed.deserialize(value)
-<a href=#413 id=413 data-nosnippet>413</a>            .map_err(|err| err.at_location(<span class="kw-2">&amp;</span>location).in_key(<span class="kw-2">&amp;</span>key))
-<a href=#414 id=414 data-nosnippet>414</a>    }
-<a href=#415 id=415 data-nosnippet>415</a>}
-<a href=#416 id=416 data-nosnippet>416</a>
-<a href=#417 id=417 data-nosnippet>417</a><span class="kw">struct </span>ListAccess {
-<a href=#418 id=418 data-nosnippet>418</a>    items: vec::IntoIter&lt;ConfigValue&gt;,
-<a href=#419 id=419 data-nosnippet>419</a>}
-<a href=#420 id=420 data-nosnippet>420</a>
-<a href=#421 id=421 data-nosnippet>421</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; SeqAccess&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>ListAccess {
-<a href=#422 id=422 data-nosnippet>422</a>    <span class="kw">type </span>Error = ConfigError;
-<a href=#423 id=423 data-nosnippet>423</a>
-<a href=#424 id=424 data-nosnippet>424</a>    <span class="kw">fn </span>next_element_seed&lt;T: DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;&gt;(
-<a href=#425 id=425 data-nosnippet>425</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#426 id=426 data-nosnippet>426</a>        seed: T,
-<a href=#427 id=427 data-nosnippet>427</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;T::Value&gt;, ConfigError&gt; {
-<a href=#428 id=428 data-nosnippet>428</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(item) = <span class="self">self</span>.items.next() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-<a href=#429 id=429 data-nosnippet>429</a>        <span class="kw">let </span>location = item.location().clone();
-<a href=#430 id=430 data-nosnippet>430</a>        seed.deserialize(item)
-<a href=#431 id=431 data-nosnippet>431</a>            .map(<span class="prelude-val">Some</span>)
-<a href=#432 id=432 data-nosnippet>432</a>            .map_err(|err| err.at_location(<span class="kw-2">&amp;</span>location))
-<a href=#433 id=433 data-nosnippet>433</a>    }
-<a href=#434 id=434 data-nosnippet>434</a>
-<a href=#435 id=435 data-nosnippet>435</a>    <span class="kw">fn </span>size_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
-<a href=#436 id=436 data-nosnippet>436</a>        <span class="prelude-val">Some</span>(<span class="self">self</span>.items.len())
-<a href=#437 id=437 data-nosnippet>437</a>    }
-<a href=#438 id=438 data-nosnippet>438</a>}
+<a href=#267 id=267 data-nosnippet>267</a><span class="doccomment">/// An error deserializing a [`ConfigValue`].
+<a href=#268 id=268 data-nosnippet>268</a></span><span class="attr">#[derive(Debug)]
+<a href=#269 id=269 data-nosnippet>269</a></span><span class="kw">pub struct </span>ConfigError {
+<a href=#270 id=270 data-nosnippet>270</a>    message: String,
+<a href=#271 id=271 data-nosnippet>271</a>    <span class="doccomment">/// Keys leading to the value that caused the error, outermost first.
+<a href=#272 id=272 data-nosnippet>272</a>    </span>keys: Vec&lt;String&gt;,
+<a href=#273 id=273 data-nosnippet>273</a>    <span class="doccomment">/// Location of the value that caused the error.
+<a href=#274 id=274 data-nosnippet>274</a>    </span>location: <span class="prelude-ty">Option</span>&lt;Location&gt;,
+<a href=#275 id=275 data-nosnippet>275</a>}
+<a href=#276 id=276 data-nosnippet>276</a>
+<a href=#277 id=277 data-nosnippet>277</a><span class="kw">impl </span>ConfigError {
+<a href=#278 id=278 data-nosnippet>278</a>    <span class="doccomment">/// Records that the error happened inside the value of `key`.
+<a href=#279 id=279 data-nosnippet>279</a>    </span><span class="kw">fn </span>in_key(<span class="kw-2">mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+<a href=#280 id=280 data-nosnippet>280</a>        <span class="self">self</span>.keys.insert(<span class="number">0</span>, key.to_owned());
+<a href=#281 id=281 data-nosnippet>281</a>        <span class="self">self
+<a href=#282 id=282 data-nosnippet>282</a>    </span>}
+<a href=#283 id=283 data-nosnippet>283</a>
+<a href=#284 id=284 data-nosnippet>284</a>    <span class="doccomment">/// Records the location of the error unless a more precise one is already known.
+<a href=#285 id=285 data-nosnippet>285</a>    </span><span class="kw">fn </span>at_location(<span class="kw-2">mut </span><span class="self">self</span>, location: <span class="kw-2">&amp;</span>Location) -&gt; <span class="self">Self </span>{
+<a href=#286 id=286 data-nosnippet>286</a>        <span class="self">self</span>.location.get_or_insert_with(|| location.clone());
+<a href=#287 id=287 data-nosnippet>287</a>        <span class="self">self
+<a href=#288 id=288 data-nosnippet>288</a>    </span>}
+<a href=#289 id=289 data-nosnippet>289</a>}
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a><span class="kw">impl </span>de::Error <span class="kw">for </span>ConfigError {
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="kw">fn </span>custom&lt;T: fmt::Display&gt;(msg: T) -&gt; <span class="self">Self </span>{
+<a href=#293 id=293 data-nosnippet>293</a>        ConfigError { message: msg.to_string(), keys: <span class="macro">vec!</span>[], location: <span class="prelude-val">None </span>}
+<a href=#294 id=294 data-nosnippet>294</a>    }
+<a href=#295 id=295 data-nosnippet>295</a>}
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>ConfigError {
+<a href=#298 id=298 data-nosnippet>298</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(location) = <span class="kw-2">&amp;</span><span class="self">self</span>.location {
+<a href=#300 id=300 data-nosnippet>300</a>            <span class="macro">write!</span>(f, <span class="string">"{location}: "</span>)<span class="question-mark">?</span>;
+<a href=#301 id=301 data-nosnippet>301</a>        }
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">if </span>!<span class="self">self</span>.keys.is_empty() {
+<a href=#303 id=303 data-nosnippet>303</a>            <span class="macro">write!</span>(f, <span class="string">"`{}`: "</span>, <span class="self">self</span>.keys.join(<span class="string">"."</span>))<span class="question-mark">?</span>;
+<a href=#304 id=304 data-nosnippet>304</a>        }
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.message)
+<a href=#306 id=306 data-nosnippet>306</a>    }
+<a href=#307 id=307 data-nosnippet>307</a>}
+<a href=#308 id=308 data-nosnippet>308</a>
+<a href=#309 id=309 data-nosnippet>309</a><span class="kw">impl </span>std::error::Error <span class="kw">for </span>ConfigError {}
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserializer&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>ConfigValue {
+<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">type </span>Error = ConfigError;
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>    <span class="kw">fn </span>deserialize_any&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(<span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
+<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#316 id=316 data-nosnippet>316</a>            ConfigValue::String(s, <span class="kw">_</span>) =&gt; visitor.visit_string(s),
+<a href=#317 id=317 data-nosnippet>317</a>            ConfigValue::Integer(i, <span class="kw">_</span>) =&gt; visitor.visit_i64(i),
+<a href=#318 id=318 data-nosnippet>318</a>            ConfigValue::Boolean(b, <span class="kw">_</span>) =&gt; visitor.visit_bool(b),
+<a href=#319 id=319 data-nosnippet>319</a>            ConfigValue::List(items, <span class="kw">_</span>) =&gt; {
+<a href=#320 id=320 data-nosnippet>320</a>                visitor.visit_seq(ListAccess { items: items.into_iter() })
+<a href=#321 id=321 data-nosnippet>321</a>            }
+<a href=#322 id=322 data-nosnippet>322</a>            ConfigValue::Table(entries, <span class="kw">_</span>) =&gt; {
+<a href=#323 id=323 data-nosnippet>323</a>                visitor.visit_map(TableAccess { entries: entries.into_iter(), value: <span class="prelude-val">None </span>})
+<a href=#324 id=324 data-nosnippet>324</a>            }
+<a href=#325 id=325 data-nosnippet>325</a>        }
+<a href=#326 id=326 data-nosnippet>326</a>    }
+<a href=#327 id=327 data-nosnippet>327</a>
+<a href=#328 id=328 data-nosnippet>328</a>    <span class="kw">fn </span>deserialize_option&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(<span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
+<a href=#329 id=329 data-nosnippet>329</a>        <span class="comment">// Missing keys never get here, they are handled by `#[serde(default)]`
+<a href=#330 id=330 data-nosnippet>330</a>        </span>visitor.visit_some(<span class="self">self</span>)
+<a href=#331 id=331 data-nosnippet>331</a>    }
+<a href=#332 id=332 data-nosnippet>332</a>
+<a href=#333 id=333 data-nosnippet>333</a>    <span class="kw">fn </span>deserialize_newtype_struct&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(
+<a href=#334 id=334 data-nosnippet>334</a>        <span class="self">self</span>,
+<a href=#335 id=335 data-nosnippet>335</a>        _name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#336 id=336 data-nosnippet>336</a>        visitor: V,
+<a href=#337 id=337 data-nosnippet>337</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
+<a href=#338 id=338 data-nosnippet>338</a>        visitor.visit_newtype_struct(<span class="self">self</span>)
+<a href=#339 id=339 data-nosnippet>339</a>    }
+<a href=#340 id=340 data-nosnippet>340</a>
+<a href=#341 id=341 data-nosnippet>341</a>    <span class="kw">fn </span>deserialize_enum&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="self">self</span>,
+<a href=#343 id=343 data-nosnippet>343</a>        _name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#344 id=344 data-nosnippet>344</a>        _variants: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str],
+<a href=#345 id=345 data-nosnippet>345</a>        visitor: V,
+<a href=#346 id=346 data-nosnippet>346</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
+<a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#348 id=348 data-nosnippet>348</a>            ConfigValue::String(s, <span class="kw">_</span>) =&gt; visitor.visit_enum(s.into_deserializer()),
+<a href=#349 id=349 data-nosnippet>349</a>            value =&gt; value.deserialize_any(visitor),
+<a href=#350 id=350 data-nosnippet>350</a>        }
+<a href=#351 id=351 data-nosnippet>351</a>    }
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a>    <span class="kw">fn </span>deserialize_struct&lt;V: Visitor&lt;<span class="lifetime">'de</span>&gt;&gt;(
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="self">self</span>,
+<a href=#355 id=355 data-nosnippet>355</a>        name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#356 id=356 data-nosnippet>356</a>        _fields: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str],
+<a href=#357 id=357 data-nosnippet>357</a>        visitor: V,
+<a href=#358 id=358 data-nosnippet>358</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
+<a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">if </span>name == LOCATED {
+<a href=#360 id=360 data-nosnippet>360</a>            <span class="comment">// Hand the location to `Located` as a `(path, start, end)` tuple
+<a href=#361 id=361 data-nosnippet>361</a>            </span><span class="kw">let </span>location = <span class="self">self</span>.location().clone();
+<a href=#362 id=362 data-nosnippet>362</a>            <span class="kw">let </span>encoded = ConfigValue::List(
+<a href=#363 id=363 data-nosnippet>363</a>                <span class="macro">vec!</span>[
+<a href=#364 id=364 data-nosnippet>364</a>                    ConfigValue::String(location.path.to_string(), location.clone()),
+<a href=#365 id=365 data-nosnippet>365</a>                    ConfigValue::Integer(location.span.start <span class="kw">as </span>i64, location.clone()),
+<a href=#366 id=366 data-nosnippet>366</a>                    ConfigValue::Integer(location.span.end <span class="kw">as </span>i64, location.clone()),
+<a href=#367 id=367 data-nosnippet>367</a>                ],
+<a href=#368 id=368 data-nosnippet>368</a>                location,
+<a href=#369 id=369 data-nosnippet>369</a>            );
+<a href=#370 id=370 data-nosnippet>370</a>            <span class="kw">let </span>fields = [(VALUE_FIELD, <span class="self">self</span>), (LOCATION_FIELD, encoded)];
+<a href=#371 id=371 data-nosnippet>371</a>            <span class="kw">return </span>visitor.visit_map(MapDeserializer::new(fields.into_iter()));
+<a href=#372 id=372 data-nosnippet>372</a>        }
+<a href=#373 id=373 data-nosnippet>373</a>        <span class="self">self</span>.deserialize_any(visitor)
+<a href=#374 id=374 data-nosnippet>374</a>    }
+<a href=#375 id=375 data-nosnippet>375</a>
+<a href=#376 id=376 data-nosnippet>376</a>    <span class="macro">forward_to_deserialize_any!</span> {
+<a href=#377 id=377 data-nosnippet>377</a>        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string bytes byte_buf unit
+<a href=#378 id=378 data-nosnippet>378</a>        unit_struct seq tuple tuple_struct map identifier ignored_any
+<a href=#379 id=379 data-nosnippet>379</a>    }
+<a href=#380 id=380 data-nosnippet>380</a>}
+<a href=#381 id=381 data-nosnippet>381</a>
+<a href=#382 id=382 data-nosnippet>382</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; IntoDeserializer&lt;<span class="lifetime">'de</span>, ConfigError&gt; <span class="kw">for </span>ConfigValue {
+<a href=#383 id=383 data-nosnippet>383</a>    <span class="kw">type </span>Deserializer = <span class="self">Self</span>;
+<a href=#384 id=384 data-nosnippet>384</a>
+<a href=#385 id=385 data-nosnippet>385</a>    <span class="kw">fn </span>into_deserializer(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
+<a href=#386 id=386 data-nosnippet>386</a>        <span class="self">self
+<a href=#387 id=387 data-nosnippet>387</a>    </span>}
+<a href=#388 id=388 data-nosnippet>388</a>}
+<a href=#389 id=389 data-nosnippet>389</a>
+<a href=#390 id=390 data-nosnippet>390</a><span class="kw">struct </span>TableAccess {
+<a href=#391 id=391 data-nosnippet>391</a>    entries: btree_map::IntoIter&lt;String, ConfigValue&gt;,
+<a href=#392 id=392 data-nosnippet>392</a>    <span class="doccomment">/// The entry whose key was deserialized last.
+<a href=#393 id=393 data-nosnippet>393</a>    </span>value: <span class="prelude-ty">Option</span>&lt;(String, ConfigValue)&gt;,
+<a href=#394 id=394 data-nosnippet>394</a>}
+<a href=#395 id=395 data-nosnippet>395</a>
+<a href=#396 id=396 data-nosnippet>396</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; MapAccess&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>TableAccess {
+<a href=#397 id=397 data-nosnippet>397</a>    <span class="kw">type </span>Error = ConfigError;
+<a href=#398 id=398 data-nosnippet>398</a>
+<a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">fn </span>next_key_seed&lt;K: DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;&gt;(
+<a href=#400 id=400 data-nosnippet>400</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#401 id=401 data-nosnippet>401</a>        seed: K,
+<a href=#402 id=402 data-nosnippet>402</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;K::Value&gt;, ConfigError&gt; {
+<a href=#403 id=403 data-nosnippet>403</a>        <span class="kw">let </span><span class="prelude-val">Some</span>((key, value)) = <span class="self">self</span>.entries.next() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+<a href=#404 id=404 data-nosnippet>404</a>        <span class="kw">let </span>deserializer: StrDeserializer&lt;ConfigError&gt; = key.as_str().into_deserializer();
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="comment">// An unknown key is reported at the location of its value
+<a href=#406 id=406 data-nosnippet>406</a>        </span><span class="kw">let </span>result = seed
+<a href=#407 id=407 data-nosnippet>407</a>            .deserialize(deserializer)
+<a href=#408 id=408 data-nosnippet>408</a>            .map_err(|err| err.at_location(value.location()));
+<a href=#409 id=409 data-nosnippet>409</a>        <span class="self">self</span>.value = <span class="prelude-val">Some</span>((key, value));
+<a href=#410 id=410 data-nosnippet>410</a>        result.map(<span class="prelude-val">Some</span>)
+<a href=#411 id=411 data-nosnippet>411</a>    }
+<a href=#412 id=412 data-nosnippet>412</a>
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">fn </span>next_value_seed&lt;V: DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;&gt;(
+<a href=#414 id=414 data-nosnippet>414</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#415 id=415 data-nosnippet>415</a>        seed: V,
+<a href=#416 id=416 data-nosnippet>416</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, ConfigError&gt; {
+<a href=#417 id=417 data-nosnippet>417</a>        <span class="kw">let </span>(key, value) = <span class="self">self
+<a href=#418 id=418 data-nosnippet>418</a>            </span>.value
+<a href=#419 id=419 data-nosnippet>419</a>            .take()
+<a href=#420 id=420 data-nosnippet>420</a>            .expect(<span class="string">"`next_value_seed` called before `next_key_seed`"</span>);
+<a href=#421 id=421 data-nosnippet>421</a>        <span class="kw">let </span>location = value.location().clone();
+<a href=#422 id=422 data-nosnippet>422</a>        seed.deserialize(value)
+<a href=#423 id=423 data-nosnippet>423</a>            .map_err(|err| err.at_location(<span class="kw-2">&amp;</span>location).in_key(<span class="kw-2">&amp;</span>key))
+<a href=#424 id=424 data-nosnippet>424</a>    }
+<a href=#425 id=425 data-nosnippet>425</a>}
+<a href=#426 id=426 data-nosnippet>426</a>
+<a href=#427 id=427 data-nosnippet>427</a><span class="kw">struct </span>ListAccess {
+<a href=#428 id=428 data-nosnippet>428</a>    items: vec::IntoIter&lt;ConfigValue&gt;,
+<a href=#429 id=429 data-nosnippet>429</a>}
+<a href=#430 id=430 data-nosnippet>430</a>
+<a href=#431 id=431 data-nosnippet>431</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; SeqAccess&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>ListAccess {
+<a href=#432 id=432 data-nosnippet>432</a>    <span class="kw">type </span>Error = ConfigError;
+<a href=#433 id=433 data-nosnippet>433</a>
+<a href=#434 id=434 data-nosnippet>434</a>    <span class="kw">fn </span>next_element_seed&lt;T: DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;&gt;(
+<a href=#435 id=435 data-nosnippet>435</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#436 id=436 data-nosnippet>436</a>        seed: T,
+<a href=#437 id=437 data-nosnippet>437</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;T::Value&gt;, ConfigError&gt; {
+<a href=#438 id=438 data-nosnippet>438</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(item) = <span class="self">self</span>.items.next() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+<a href=#439 id=439 data-nosnippet>439</a>        <span class="kw">let </span>location = item.location().clone();
+<a href=#440 id=440 data-nosnippet>440</a>        seed.deserialize(item)
+<a href=#441 id=441 data-nosnippet>441</a>            .map(<span class="prelude-val">Some</span>)
+<a href=#442 id=442 data-nosnippet>442</a>            .map_err(|err| err.at_location(<span class="kw-2">&amp;</span>location))
+<a href=#443 id=443 data-nosnippet>443</a>    }
+<a href=#444 id=444 data-nosnippet>444</a>
+<a href=#445 id=445 data-nosnippet>445</a>    <span class="kw">fn </span>size_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+<a href=#446 id=446 data-nosnippet>446</a>        <span class="prelude-val">Some</span>(<span class="self">self</span>.items.len())
+<a href=#447 id=447 data-nosnippet>447</a>    }
+<a href=#448 id=448 data-nosnippet>448</a>}
 </code></pre></div></section></main></body></html>
