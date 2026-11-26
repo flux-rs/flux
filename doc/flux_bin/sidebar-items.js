@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["prepend_prefix_to_pattern"],"mod":["cargo_flux_opts","cargo_style","config","utils"],"struct":["FluxMetadata","Ignore","Trusted","TrustedImpl"]};
+window.SIDEBAR_ITEMS = {"fn":["prepend_prefix_to_pattern"],"mod":["cargo_flux_opts","cargo_style","config","self_cmd","utils"],"struct":["FluxMetadata","Ignore","Trusted","TrustedImpl"]};

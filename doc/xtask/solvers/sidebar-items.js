@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["FIXPOINT","Z3","Z3_VERSION"],"enum":["BundleSolvers"],"fn":["bundle","download","download_solver","extract_executable","fixpoint_archive_url","skip","supports_solver_path","z3_archive_url"],"struct":["Solver"]};
+window.SIDEBAR_ITEMS = {"constant":["FIXPOINT","Z3","Z3_VERSION"],"enum":["BundleSolvers"],"fn":["bundle","download_solver","extract_executable","fixpoint_archive_url","skip","supports_solver_path","z3_archive_url"],"struct":["Solver"]};
