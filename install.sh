@@ -43,6 +43,11 @@ case "$(uname -s)-$(uname -m)" in
     *) err "there are no Flux releases for $(uname -s) $(uname -m), see $INSTALL_GUIDE_URL to build it from source" ;;
 esac
 
+# The Linux release is built against glibc. Detected like rustup-init.sh does.
+if [ "$(uname -s)" = Linux ] && ldd --version 2>&1 | grep -q musl; then
+    err "Linux distributions based on musl, e.g., Alpine, are not supported, see $INSTALL_GUIDE_URL"
+fi
+
 need curl
 need tar
 need rustup ", see https://rustup.rs"
