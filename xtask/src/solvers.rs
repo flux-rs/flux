@@ -158,7 +158,10 @@ fn extract_executable(archive: &Path, exe: &Path) -> anyhow::Result<()> {
         let index = (0..zip.len())
             .find(|&i| {
                 zip.by_index(i).is_ok_and(|entry| {
-                    entry.is_file() && Path::new(entry.name()).file_name() == Some(name)
+                    entry.is_file()
+                        && entry
+                            .name()
+                            .is_ok_and(|path| Path::new(path.as_ref()).file_name() == Some(name))
                 })
             })
             .ok_or_else(not_found)?;
