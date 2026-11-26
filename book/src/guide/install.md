@@ -2,27 +2,10 @@
 
 You can install and then run Flux either on a single file or on an entire crate.
 
-## Requirements
-
-- [rustup](https://rustup.rs/)
-
-  Flux runs with a specific nightly version of Rust, which the installation installs with rustup.
-
-- [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint) and
-  [z3](https://github.com/Z3Prover/z3) 4.15 or later
-
-  The prebuilt releases include both. If a bundled solver doesn't run on your machine, e.g., on an
-  older OS, the installation removes it and Flux looks it up in your `$PATH`. When you build Flux
-  from source, `--bundle-solvers` downloads both on the platforms with prebuilt binaries. On other
-  platforms, install them yourself:
-  [build liquid-fixpoint from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install)
-  and download z3 from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). Make sure that
-  the `fixpoint` and `z3` binaries are in your `$PATH`.
-
 ## Install
 
 There are prebuilt releases of Flux for x86_64 Linux, aarch64 macOS, and x86_64 Windows. On other
-platforms, [build Flux from source](#building-from-source).
+platforms, you can [build Flux from source](#building-from-source).
 
 On Linux and macOS, run
 
@@ -38,8 +21,7 @@ irm https://raw.githubusercontent.com/flux-rs/flux/main/install.ps1 | iex
 
 This installs the latest release of Flux: the Flux sysroot (the binaries, precompiled libraries,
 and solvers) to `$HOME/.flux/sysroot`, and the Rust toolchain it needs with rustup. It also links
-two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`). These two binaries
-should be used respectively to run Flux on either a single file or on a cargo project.
+two binaries, `flux` and `cargo-flux`, from your cargo home (`$HOME/.cargo/bin`).
 
 ### Updating and Uninstalling
 
@@ -62,29 +44,21 @@ To uninstall Flux, run `cargo flux self uninstall`. This leaves your
 
 ### Building from Source
 
-First you need to clone the repository
+To build from source
 
 ```bash
 git clone https://github.com/flux-rs/flux
 cd flux
-```
-
-Flux is built with a specific nightly version of Rust, pinned in the repository's
-[toolchain file](https://github.com/flux-rs/flux/blob/main/rust-toolchain.toml). You don't need to
-install it yourself: `rustup`
-[reads that file](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file) and installs
-that version, together with the components Flux needs, the first time you build.
-
-Next, run the following to build and install `flux` binaries
-
-```bash
 cargo xtask install --bundle-solvers
 ```
 
-This installs Flux like the prebuilt releases do. With `--bundle-solvers`, the installation also
-downloads liquid-fixpoint and z3 into the sysroot if there are prebuilt binaries for your platform.
-Flux looks up any solver that isn't downloaded in your `$PATH`. Run `cargo xtask uninstall` to
-uninstall it.
+With `--bundle-solvers`, the installation also downloads liquid-fixpoint and z3 
+into the sysroot if there are prebuilt binaries for your platform.
+Flux looks up any solver that isn't downloaded in your `$PATH`. 
+On other platforms, install them yourself: [build liquid-fixpoint from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install) and download z3 from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). 
+Make sure that the `fixpoint` and `z3` binaries are in your `$PATH`.
+
+Run `cargo xtask uninstall` to uninstall it.
 
 ## Flux Home
 
