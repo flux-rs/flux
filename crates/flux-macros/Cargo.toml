@@ -14,8 +14,8 @@ indexmap.workspace = true
 itertools.workspace = true
 proc-macro2 = "1"
 quote = "1"
-syn = { version = "2", features = ["full"] }
-synstructure = "0.13.1"
+syn = { version = "3", features = ["full"] }
+synstructure = "0.14.0"
 
 [lints]
 workspace = true

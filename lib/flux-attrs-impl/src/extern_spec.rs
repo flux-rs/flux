@@ -3,8 +3,8 @@ use std::mem;
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, TokenStreamExt, format_ident, quote, quote_spanned};
 use syn::{
-    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Ident, Signature, Token, Type,
-    TypePath, braced,
+    Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, Ident, ReceiverKind,
+    Signature, Token, Type, TypePath, braced,
     parse::{Parse, ParseStream},
     parse_quote, parse_quote_spanned,
     punctuated::Punctuated,
@@ -540,15 +540,13 @@ impl ExternFn {
             if let FnArg::Receiver(receiver) = first {
                 let ident = format_ident!("__self", span = receiver.self_token.span);
 
-                *first = if receiver.colon_token.is_some() {
+                *first = match &receiver.kind {
                     // If there's a colon this is an arbitrary self types and we leave it as is.
-                    let receiver_ty = &receiver.ty;
-                    parse_quote!(#ident : #receiver_ty)
-                } else if let Some((ampersand, lft)) = &receiver.reference {
-                    let mutbl = receiver.mutability;
-                    parse_quote!(#ident : #ampersand #lft #mutbl #self_ty)
-                } else {
-                    parse_quote!(#ident : #self_ty)
+                    ReceiverKind::Typed(_, receiver_ty) => parse_quote!(#ident : #receiver_ty),
+                    ReceiverKind::Reference(ampersand, lft, mutbl) => {
+                        parse_quote!(#ident : #ampersand #lft #mutbl #self_ty)
+                    }
+                    _ => parse_quote!(#ident : #self_ty),
                 };
             }
         }
@@ -565,7 +563,7 @@ impl ExternFn {
         // Lifetimes are left for inference
         let generic_args = generic_params_to_args(&self.sig.generics.params, false);
         let fn_args = fn_params_to_args(&self.sig.inputs);
-        if self.sig.unsafety.is_some() {
+        if matches!(self.sig.safety, syn::Safety::Unsafe(_)) {
             self.block = Some(quote!({ unsafe { #fn_path :: <#generic_args> ( #fn_args ) } }));
         } else {
             self.block = Some(quote!({ #fn_path :: <#generic_args> ( #fn_args ) }));
@@ -612,7 +610,7 @@ impl Parse for ExternItemImpl {
                 while let Type::Group(ty) = first_ty {
                     first_ty = *ty.elem;
                 }
-                if let Type::Path(TypePath { qself: None, path }) = first_ty {
+                if let Type::Path(TypePath { qself: None, path, .. }) = first_ty {
                     trait_ = Some((None, path, for_token));
                 } else {
                     unreachable!();
@@ -699,7 +697,7 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
         }
         Path(ty_path) => create_dummy_ident_from_path(dummy_prefix, &ty_path.path),
         Ptr(ty_ptr) => {
-            if ty_ptr.mutability.is_some() {
+            if matches!(ty_ptr.mutability, syn::PointerMutability::Mut(_)) {
                 dummy_prefix.push_str("MutPtr");
             } else {
                 dummy_prefix.push_str("ConstPtr");

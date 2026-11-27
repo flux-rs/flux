@@ -171,6 +171,7 @@ impl Parse for TraitItem {
                 let semi_token: Token![;] = input.parse()?;
                 Ok(TraitItem::Const(syn::TraitItemConst {
                     attrs: Vec::new(),
+                    modifiers: syn::ConstModifiers::default(),
                     const_token,
                     ident,
                     generics: syn::Generics::default(),
@@ -550,8 +551,6 @@ pub struct Field {
 
     pub vis: Visibility,
 
-    pub _mutability: syn::FieldMutability,
-
     /// Name of the field, if any.
     ///
     /// Fields of tuple structs have no names.
@@ -567,7 +566,6 @@ impl Field {
         Ok(Field {
             attrs: input.call(Attribute::parse_outer)?,
             vis: input.parse()?,
-            _mutability: syn::FieldMutability::None,
             ident: None,
             colon_token: None,
             ty: input.parse()?,
@@ -581,14 +579,7 @@ impl Field {
         let ident = input.parse()?;
         let colon_token: Token![:] = input.parse()?;
         let ty = input.parse()?;
-        Ok(Field {
-            attrs,
-            vis,
-            _mutability: syn::FieldMutability::None,
-            ident: Some(ident),
-            colon_token: Some(colon_token),
-            ty,
-        })
+        Ok(Field { attrs, vis, ident: Some(ident), colon_token: Some(colon_token), ty })
     }
 
     #[cfg(flux_sysroot)]
@@ -1539,7 +1530,7 @@ impl Parse for ItemImpl {
                 while let syn::Type::Group(ty) = first_ty {
                     first_ty = *ty.elem;
                 }
-                if let syn::Type::Path(syn::TypePath { qself: None, path }) = first_ty {
+                if let syn::Type::Path(syn::TypePath { qself: None, path, .. }) = first_ty {
                     trait_ = Some((path, for_token));
                 } else {
                     unreachable!();
@@ -2835,6 +2826,7 @@ fn parse_trait_item_type(input: ParseStream) -> Result<TraitItem> {
     } else {
         Ok(TraitItem::Type(syn::TraitItemType {
             attrs: Vec::new(),
+            modifiers: syn::TypeModifiers::default(),
             type_token,
             ident,
             generics,
