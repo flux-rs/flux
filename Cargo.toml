@@ -53,6 +53,8 @@ tar = { version = "0.4", default-features = false }
 tempfile = "3.19.1"
 toml = "1.2"
 toposort-scc = "0.5.4"
+# We don't use `#[instrument]`, so skip the default `attributes` feature.
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 walkdir = "2.5"
 
 [workspace.lints.rust]
