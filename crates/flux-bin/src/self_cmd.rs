@@ -6,7 +6,8 @@
 
 use std::{
     collections::BTreeMap,
-    env, fs, io,
+    env, fs,
+    io::{self, IsTerminal},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -38,6 +39,9 @@ fn install() -> anyhow::Result<()> {
     let src = running_sysroot()?;
     let manifest = SysrootManifest::read(&src)?;
     let dst = default_flux_sysroot_dir();
+    let previous_toolchain = SysrootManifest::read(&dst)
+        .ok()
+        .map(|previous| previous.toolchain);
 
     // First, so a failure leaves the current installation untouched.
     install_toolchain(&manifest)?;
@@ -68,6 +72,39 @@ fn install() -> anyhow::Result<()> {
             "warning: `{FLUX_SYSROOT}` is set to `{}`, so Flux won't use this installation",
             sysroot.display()
         );
+    }
+    if let Some(previous) = previous_toolchain
+        && previous != manifest.toolchain
+    {
+        offer_to_uninstall_toolchain(&previous)?;
+    }
+    Ok(())
+}
+
+/// Asks whether to uninstall `toolchain`, the one the previous installation used, which may also be
+/// used by something else. Without a terminal to ask in, it only says how to do it.
+fn offer_to_uninstall_toolchain(toolchain: &str) -> anyhow::Result<()> {
+    eprintln!();
+    if !io::stdin().is_terminal() {
+        eprintln!(
+            "note: Flux no longer uses the toolchain `{toolchain}`, remove it with `rustup toolchain uninstall {toolchain}` if nothing else uses it"
+        );
+        return Ok(());
+    }
+    eprint!(
+        "Flux no longer uses the toolchain `{toolchain}`. Uninstall it, if nothing else uses it? [y/N] "
+    );
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    if !matches!(answer.trim(), "y" | "Y" | "yes") {
+        return Ok(());
+    }
+    let status = Command::new("rustup")
+        .args(["toolchain", "uninstall", toolchain])
+        .status()
+        .map_err(|err| anyhow!("failed to run `rustup`: {err}"))?;
+    if !status.success() {
+        eprintln!("warning: failed to uninstall the toolchain `{toolchain}`");
     }
     Ok(())
 }
