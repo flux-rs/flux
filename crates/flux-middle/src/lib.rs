@@ -4,8 +4,10 @@
     closure_track_caller,
     map_try_insert,
     min_specialization,
+    register_tool,
     rustc_private
 )]
+#![register_tool(lint)]
 
 extern crate rustc_abi;
 extern crate rustc_ast;
