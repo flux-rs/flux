@@ -23,6 +23,10 @@ concurrency:
 jobs:
   upgrade:
     runs-on: ubuntu-latest
+    # To push the `toolchain-upgrade` branch and open a pull request.
+    permissions:
+      contents: write
+      pull-requests: write
     env:
       prev_toolchain: ""
       last_toolchain: ""
@@ -35,6 +39,7 @@ jobs:
         with:
           path: flux
           ref: main
+          persist-credentials: false
 
       - name: Configure git
         run: |
@@ -50,7 +55,7 @@ jobs:
             git fetch --unshallow origin main toolchain-upgrade
             start=$(git merge-base main origin/toolchain-upgrade)
             end=origin/toolchain-upgrade
-            git cherry-pick $start..$end
+            git cherry-pick "$start..$end"
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -60,6 +65,7 @@ jobs:
         with:
           repository: PLSysSec/tock
           path: tock
+          persist-credentials: false
 
       - name: Checkout rust
         run: |
@@ -71,7 +77,7 @@ jobs:
           version: 4.15.3
 
       - name: Install Fixpoint
-        uses: ./flux/.github/actions/install-fixpoint
+        uses: $/.github/actions/install-fixpoint
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -79,19 +85,24 @@ jobs:
         id: update-loop
         continue-on-error: true
         run: |
-          days_per_step="${{ github.event.inputs.days_per_step }}"
+          days_per_step="${GITHUB_EVENT_INPUTS_DAYS_PER_STEP}"
           if [ -z "$days_per_step" ]; then
             days_per_step=1
           fi
-          bash flux/.github/scripts/try-upgrade-toolchain.sh "${{ github.event.inputs.end_toolchain }}" "$days_per_step"
+          bash flux/.github/scripts/try-upgrade-toolchain.sh "${GITHUB_EVENT_INPUTS_END_TOOLCHAIN}" "$days_per_step"
+        env:
+          GITHUB_EVENT_INPUTS_DAYS_PER_STEP: ${{ github.event.inputs.days_per_step }}
+          GITHUB_EVENT_INPUTS_END_TOOLCHAIN: ${{ github.event.inputs.end_toolchain }}
 
       - run: |
           cd flux
           last_toolchain=$(grep ^channel rust-toolchain.toml | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
           prev_toolchain=$(git show HEAD^:rust-toolchain.toml | grep ^channel | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
 
-          echo "prev_toolchain=$prev_toolchain" >> $GITHUB_ENV
-          echo "last_toolchain=$last_toolchain" >> $GITHUB_ENV
+          {
+            echo "prev_toolchain=$prev_toolchain"
+            echo "last_toolchain=$last_toolchain"
+          } >> "$GITHUB_ENV"
 
       - name: Create pull request on success
         if: steps.update-loop.outcome == 'success'
@@ -108,17 +119,18 @@ jobs:
       - name: Get git log for failure
         if: steps.update-loop.outcome == 'failure'
         run: |
-          prev_toolchain_hash=$(curl https://static.rust-lang.org/dist/$prev_toolchain/channel-rust-nightly-git-commit-hash.txt)
-          last_toolchain_hash=$(curl https://static.rust-lang.org/dist/$last_toolchain/channel-rust-nightly-git-commit-hash.txt)
-
-          echo "prev_toolchain_hash=$prev_toolchain_hash" >> $GITHUB_ENV
-          echo "last_toolchain_hash=$last_toolchain_hash" >> $GITHUB_ENV
+          prev_toolchain_hash=$(curl "https://static.rust-lang.org/dist/$prev_toolchain/channel-rust-nightly-git-commit-hash.txt")
+          last_toolchain_hash=$(curl "https://static.rust-lang.org/dist/$last_toolchain/channel-rust-nightly-git-commit-hash.txt")
 
           cd rust
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "git_log<<$EOF" >> $GITHUB_ENV
-          ../flux/.github/scripts/extract-rust-git-log.sh $prev_toolchain_hash $last_toolchain_hash >> $GITHUB_ENV
-          echo "$EOF" >> $GITHUB_ENV
+          {
+            echo "prev_toolchain_hash=$prev_toolchain_hash"
+            echo "last_toolchain_hash=$last_toolchain_hash"
+            echo "git_log<<$EOF"
+            ../flux/.github/scripts/extract-rust-git-log.sh "$prev_toolchain_hash" "$last_toolchain_hash"
+            echo "$EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Create pull request on failure
         if: steps.update-loop.outcome == 'failure'

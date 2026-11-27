@@ -12,10 +12,15 @@ concurrency:
 
 jobs:
   build:
+    # To push to the `gh-pages` branch.
+    permissions:
+      contents: write
     name: Build and Deploy Website
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install mdBook
         uses: peaceiris/actions-mdbook@v1.2.0
