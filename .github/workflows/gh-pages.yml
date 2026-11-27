@@ -6,17 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+permissions: {}
+
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   build:
-    # To push to the `gh-pages` branch.
-    permissions:
-      contents: write
-    name: Build and Deploy Website
+    name: Build Website
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,9 +35,26 @@ jobs:
 
       - run: cargo xtask doc && mv target/doc book/book
 
-      # Only deploy when pushing on main, otherwise just run mdbook and cargo doc to check if there are any errors
-      - uses: JamesIves/github-pages-deploy-action@4.1.7
-        if: ${{ github.event_name == 'push' }}
+      - uses: actions/upload-pages-artifact@v5
         with:
-          branch: gh-pages # The branch the action should deploy to.
-          folder: book/book # The folder the action should deploy.
+          path: book/book
+
+  # Pull requests only check that the website builds.
+  deploy:
+    name: Deploy Website
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # To deploy to GitHub Pages.
+      id-token: write # To prove the deployment comes from this workflow.
+    # Deploy in order, and never cancel a deployment mid-way.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
