@@ -1,4 +1,5 @@
-#![feature(rustc_private)]
+#![feature(register_tool, rustc_private)]
+#![register_tool(lint)]
 
 extern crate rustc_abi;
 extern crate rustc_data_structures;
