@@ -6,7 +6,8 @@
 
 use std::{
     collections::BTreeMap,
-    env, fs, io,
+    env, fs,
+    io::{self, IsTerminal},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -15,8 +16,8 @@ use anyhow::anyhow;
 use flux_sysroot::{
     FLUX_SYSROOT, SYSROOT_MANIFEST, SysrootManifest, bin_path, default_flux_sysroot_dir,
     install::{
-        self, BundledSolver, FIXPOINT, Z3, copy_dir, create_dir, download, link_binaries,
-        remove_path, replace_dir, sibling_path,
+        self, copy_dir, create_dir, download, link_binaries, remove_broken_solvers, remove_path,
+        replace_dir, sibling_path,
     },
 };
 use serde::Deserialize;
@@ -38,6 +39,9 @@ fn install() -> anyhow::Result<()> {
     let src = running_sysroot()?;
     let manifest = SysrootManifest::read(&src)?;
     let dst = default_flux_sysroot_dir();
+    let previous_toolchain = SysrootManifest::read(&dst)
+        .ok()
+        .map(|previous| previous.toolchain);
 
     // First, so a failure leaves the current installation untouched.
     install_toolchain(&manifest)?;
@@ -51,7 +55,7 @@ fn install() -> anyhow::Result<()> {
         let staging = sibling_path(&dst, "new");
         remove_path(&staging)?;
         copy_dir(&src, &staging)?;
-        remove_broken_solvers(&staging)?;
+        remove_broken_solvers(&staging, false)?;
         replace_dir(&staging, &dst)?;
     }
     link_binaries(&dst)?;
@@ -68,6 +72,39 @@ fn install() -> anyhow::Result<()> {
             "warning: `{FLUX_SYSROOT}` is set to `{}`, so Flux won't use this installation",
             sysroot.display()
         );
+    }
+    if let Some(previous) = previous_toolchain
+        && previous != manifest.toolchain
+    {
+        offer_to_uninstall_toolchain(&previous)?;
+    }
+    Ok(())
+}
+
+/// Asks whether to uninstall `toolchain`, the one the previous installation used, which may also be
+/// used by something else. Without a terminal to ask in, it only says how to do it.
+fn offer_to_uninstall_toolchain(toolchain: &str) -> anyhow::Result<()> {
+    eprintln!();
+    if !io::stdin().is_terminal() {
+        eprintln!(
+            "note: Flux no longer uses the toolchain `{toolchain}`, remove it with `rustup toolchain uninstall {toolchain}` if nothing else uses it"
+        );
+        return Ok(());
+    }
+    eprint!(
+        "Flux no longer uses the toolchain `{toolchain}`. Uninstall it, if nothing else uses it? [y/N] "
+    );
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    if !matches!(answer.trim(), "y" | "Y" | "yes") {
+        return Ok(());
+    }
+    let status = Command::new("rustup")
+        .args(["toolchain", "uninstall", toolchain])
+        .status()
+        .map_err(|err| anyhow!("failed to run `rustup`: {err}"))?;
+    if !status.success() {
+        eprintln!("warning: failed to uninstall the toolchain `{toolchain}`");
     }
     Ok(())
 }
@@ -141,6 +178,7 @@ fn download_and_install(tag: &str, target: &str, sysroot: &Path, tmp: &Path) -> 
         .get(target)
         .ok_or_else(|| anyhow!("the release `{tag}` has no archive for `{target}`"))?;
     let archive_path = tmp.join(format!("flux-{target}.tar.gz"));
+    eprintln!("Downloading {}", archive.url);
     download(&archive.url, &archive_path)?;
     let sha256 = sha256(&archive_path)?;
     if !sha256.eq_ignore_ascii_case(&archive.sha256) {
@@ -151,13 +189,11 @@ fn download_and_install(tag: &str, target: &str, sysroot: &Path, tmp: &Path) -> 
         ));
     }
 
-    eprintln!("$ tar -xzf {} -C {}", archive_path.display(), tmp.display());
     tar::Archive::new(flate2::read::GzDecoder::new(fs::File::open(&archive_path)?))
         .unpack(tmp)
         .map_err(|err| anyhow!("failed to extract `{}`: {err}", archive_path.display()))?;
 
     let cargo_flux = bin_path(&tmp.join("sysroot"), "cargo-flux");
-    eprintln!("$ {} flux self install", cargo_flux.display());
     let status = Command::new(&cargo_flux)
         .args(["flux", "self", "install"])
         .status()
@@ -188,7 +224,6 @@ fn uninstall() -> anyhow::Result<()> {
         .map(|manifest| manifest.toolchain);
     install::uninstall(&sysroot)?;
 
-    eprintln!();
     eprintln!("Uninstalled Flux from `{}`", sysroot.display());
     if let Some(toolchain) = toolchain {
         eprintln!(
@@ -225,38 +260,11 @@ fn same_dir(a: &Path, b: &Path) -> bool {
 fn install_toolchain(manifest: &SysrootManifest) -> anyhow::Result<()> {
     let mut cmd = Command::new("rustup");
     cmd.args(["toolchain", "install", &manifest.toolchain, "--profile", "minimal"]);
-    eprintln!(
-        "$ rustup {}",
-        cmd.get_args()
-            .map(|arg| arg.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
     let status = cmd.status().map_err(|err| {
         anyhow!("failed to run `rustup`, which Flux needs (see https://rustup.rs): {err}")
     })?;
     if !status.success() {
         return Err(anyhow!("failed to install the toolchain `{}`", manifest.toolchain));
-    }
-    Ok(())
-}
-
-/// Removes the solvers bundled in `sysroot` that don't run on this machine, e.g., on an older OS
-/// than the release was built for, so Flux looks them up in `PATH` instead.
-fn remove_broken_solvers(sysroot: &Path) -> anyhow::Result<()> {
-    let is_bundled = |solver: &BundledSolver| bin_path(sysroot, solver.name).exists();
-    let remove = |solver: &BundledSolver, reason: &str| {
-        eprintln!("warning: {reason}, Flux will look `{}` up in PATH", solver.name);
-        remove_path(&bin_path(sysroot, solver.name))
-    };
-    if is_bundled(&FIXPOINT) && !FIXPOINT.runs(sysroot) {
-        remove(&FIXPOINT, "the bundled `fixpoint` doesn't run on this machine")?;
-        // z3 is only bundled to be passed to the bundled fixpoint.
-        if is_bundled(&Z3) {
-            remove(&Z3, "the bundled `z3` is only used with the bundled `fixpoint`")?;
-        }
-    } else if is_bundled(&Z3) && !Z3.runs(sysroot) {
-        remove(&Z3, "the bundled `z3` doesn't run on this machine")?;
     }
     Ok(())
 }
