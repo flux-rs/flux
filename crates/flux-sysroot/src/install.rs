@@ -1,6 +1,4 @@
 //! Installing and uninstalling a sysroot, shared by `cargo x install` and `cargo flux self`.
-//!
-//! Every function prints what it does to stderr, in the form of the equivalent shell command.
 
 use std::{
     env, fs, io,
@@ -96,7 +94,6 @@ pub fn link_binaries(sysroot: &Path) -> anyhow::Result<()> {
 
 #[cfg(unix)]
 fn symlink_or_copy(target: &Path, link: &Path) -> anyhow::Result<()> {
-    eprintln!("$ ln -s {} {}", target.display(), link.display());
     std::os::unix::fs::symlink(target, link).map_err(|err| {
         anyhow!("failed to link `{}` to `{}`: {err}", link.display(), target.display())
     })
@@ -124,7 +121,6 @@ pub fn uninstall(sysroot: &Path) -> anyhow::Result<()> {
             remove_executable(&link)?;
         }
     }
-    eprintln!("$ rm -rf {}", sysroot.display());
     remove_path(sysroot)
 }
 
@@ -133,7 +129,6 @@ pub fn uninstall(sysroot: &Path) -> anyhow::Result<()> {
 /// That file is removed the next time.
 fn remove_executable(path: &Path) -> anyhow::Result<()> {
     if !cfg!(windows) {
-        eprintln!("$ rm {}", path.display());
         return remove_path(path);
     }
     let old = sibling_path(path, "old");
@@ -154,7 +149,6 @@ pub fn replace_dir(src: &Path, dst: &Path) -> anyhow::Result<()> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         use rustix::fs::{CWD, RenameFlags, renameat_with};
-        eprintln!("$ exchange {} {}", src.display(), dst.display());
         if renameat_with(CWD, src, CWD, dst, RenameFlags::EXCHANGE).is_ok() {
             // `src` now holds the old contents of `dst`
             return remove_path(src);
@@ -169,7 +163,6 @@ pub fn replace_dir(src: &Path, dst: &Path) -> anyhow::Result<()> {
 
 /// Downloads `url` into the file `dst` with `curl`.
 pub fn download(url: &str, dst: &Path) -> anyhow::Result<()> {
-    eprintln!("$ curl -o {} {url}", dst.display());
     let status = Command::new("curl")
         .args(["--proto", "=https", "--tlsv1.2", "-fsSL", "--retry", "3", "-o"])
         .arg(dst)
@@ -185,7 +178,6 @@ pub fn download(url: &str, dst: &Path) -> anyhow::Result<()> {
 }
 
 pub fn rename(src: &Path, dst: &Path) -> anyhow::Result<()> {
-    eprintln!("$ mv {} {}", src.display(), dst.display());
     fs::rename(src, dst).map_err(|err| {
         anyhow!("failed to rename `{}` to `{}`: {err}", src.display(), dst.display())
     })
@@ -202,7 +194,6 @@ pub fn sibling_path(path: &Path, suffix: &str) -> PathBuf {
 pub fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Result<()> {
     let src = src.as_ref();
     let dst = dst.as_ref();
-    eprintln!("$ cp {} {}", src.display(), dst.display());
 
     let mut _tmp;
     let mut dst = dst;
@@ -221,7 +212,6 @@ pub fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Resu
 
 /// Copies the directory `src` to `dst`, which must not exist. Symlinks are not followed.
 pub fn copy_dir(src: &Path, dst: &Path) -> anyhow::Result<()> {
-    eprintln!("$ cp -r {} {}", src.display(), dst.display());
     copy_dir_inner(src, dst)
         .map_err(|err| anyhow!("failed to copy `{}` to `{}`: {err}", src.display(), dst.display()))
 }

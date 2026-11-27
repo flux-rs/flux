@@ -141,6 +141,7 @@ fn download_and_install(tag: &str, target: &str, sysroot: &Path, tmp: &Path) -> 
         .get(target)
         .ok_or_else(|| anyhow!("the release `{tag}` has no archive for `{target}`"))?;
     let archive_path = tmp.join(format!("flux-{target}.tar.gz"));
+    eprintln!("Downloading {}", archive.url);
     download(&archive.url, &archive_path)?;
     let sha256 = sha256(&archive_path)?;
     if !sha256.eq_ignore_ascii_case(&archive.sha256) {
@@ -151,13 +152,11 @@ fn download_and_install(tag: &str, target: &str, sysroot: &Path, tmp: &Path) -> 
         ));
     }
 
-    eprintln!("$ tar -xzf {} -C {}", archive_path.display(), tmp.display());
     tar::Archive::new(flate2::read::GzDecoder::new(fs::File::open(&archive_path)?))
         .unpack(tmp)
         .map_err(|err| anyhow!("failed to extract `{}`: {err}", archive_path.display()))?;
 
     let cargo_flux = bin_path(&tmp.join("sysroot"), "cargo-flux");
-    eprintln!("$ {} flux self install", cargo_flux.display());
     let status = Command::new(&cargo_flux)
         .args(["flux", "self", "install"])
         .status()
@@ -188,7 +187,6 @@ fn uninstall() -> anyhow::Result<()> {
         .map(|manifest| manifest.toolchain);
     install::uninstall(&sysroot)?;
 
-    eprintln!();
     eprintln!("Uninstalled Flux from `{}`", sysroot.display());
     if let Some(toolchain) = toolchain {
         eprintln!(
@@ -225,13 +223,6 @@ fn same_dir(a: &Path, b: &Path) -> bool {
 fn install_toolchain(manifest: &SysrootManifest) -> anyhow::Result<()> {
     let mut cmd = Command::new("rustup");
     cmd.args(["toolchain", "install", &manifest.toolchain, "--profile", "minimal"]);
-    eprintln!(
-        "$ rustup {}",
-        cmd.get_args()
-            .map(|arg| arg.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
     let status = cmd.status().map_err(|err| {
         anyhow!("failed to run `rustup`, which Flux needs (see https://rustup.rs): {err}")
     })?;
