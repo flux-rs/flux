@@ -1204,7 +1204,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let tcx = self.tcx();
 
         let candidate = self.probe_single_bound_for_assoc_item(
-            || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
+            || {
+                traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx))
+                    .map(ty::Unnormalized::skip_norm_wip)
+            },
             constraint.ident,
             AssocTag::Type,
         )?;
@@ -1531,6 +1534,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                             tcx,
                             ty::Binder::dummy(trait_ref.instantiate_identity().skip_norm_wip()),
                         )
+                        .map(ty::Unnormalized::skip_norm_wip)
                     },
                     assoc_ident,
                     tag,
