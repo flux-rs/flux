@@ -5,7 +5,8 @@ name: nightly
 # nightly-daily.yml keeps a copy of the `nightly` release as `nightly-yyyy-mm-dd`.
 
 on:
-  workflow_run:
+  # Only pushes to main get past the `if` of the `build` job, so this never runs code from a fork.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [ci]
     types: [completed]
     branches: [main]
@@ -14,6 +15,8 @@ on:
 env:
   # The commit CI tested, or the one the workflow was dispatched on.
   COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+permissions: {}
 
 jobs:
   build:
@@ -32,10 +35,13 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.COMMIT }}
+          persist-credentials: false
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.8.0
@@ -70,6 +76,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.COMMIT }}
+          persist-credentials: false
 
       # CI runs can finish out of order. Don't let an older commit replace a newer one: the newer
       # commit publishes itself once its CI passes.
@@ -103,8 +110,9 @@ jobs:
           if ! gh release view nightly > /dev/null 2>&1; then
             gh release create nightly --prerelease --target "$COMMIT" --title "Nightly" --notes ""
           fi
-          git tag -f nightly "$COMMIT"
-          git push -f origin refs/tags/nightly
+          # Move the tag through the API, the checkout doesn't keep git credentials.
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/nightly" \
+            -f sha="$COMMIT" -F force=true > /dev/null
           # Upload the archives first, so the manifest never points to archives that aren't there.
           gh release upload nightly dist/flux-*.tar.gz --clobber
           gh release upload nightly dist/manifest.json --clobber
@@ -123,6 +131,8 @@ jobs:
     needs: publish
     if: needs.publish.outputs.latest == 'true' && vars.DEPLOY_TARGET != ''
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     environment: playground
     # Serialize deploys; never cancel one mid-way through the upload/swap.
     concurrency:
@@ -130,10 +140,14 @@ jobs:
       cancel-in-progress: false
     env:
       DEPLOY_TARGET: ${{ vars.DEPLOY_TARGET }}
+      # Unique per run and per attempt, so re-runs never upload into the directory that is
+      # currently live on the server.
+      DEPLOY_ID: ${{ github.event.workflow_run.head_sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.COMMIT }}
+          persist-credentials: false
 
       - uses: actions/download-artifact@v4
         with:
@@ -143,11 +157,10 @@ jobs:
       - name: Extract sysroot
         run: |
           tar -xzf "$RUNNER_TEMP/flux-x86_64-unknown-linux-gnu.tar.gz" -C "$RUNNER_TEMP"
-          echo "SYSROOT=$RUNNER_TEMP/sysroot" >> "$GITHUB_ENV"
 
       # flux-deploy only deploys a sysroot built from a newer commit than the live one.
       - name: Stamp build with commit timestamp
-        run: git log -1 --format='%ct' > "$SYSROOT/version"
+        run: git log -1 --format='%ct' > "$RUNNER_TEMP/sysroot/version"
 
       - name: Set up SSH key
         env:
@@ -175,16 +188,14 @@ jobs:
             chmod 600 ~/.ssh/config
           fi
 
-      - name: Compute deploy ID
-        # Unique per run and per attempt, so re-runs never upload into the
-        # directory that is currently live on the server.
-        run: echo "DEPLOY_ID=$COMMIT-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_ENV"
-
       - name: Rsync flux sysroot to per-run staging directory on server
         run: |
           # Destination is relative: rrsync (the forced command on the server)
           # roots it under ~/.flux-staging, so this lands in ~/.flux-staging/sysroot/$DEPLOY_ID.
-          rsync -az --delete "$SYSROOT/" "$DEPLOY_TARGET:sysroot/$DEPLOY_ID/"
+          rsync -az --delete "$RUNNER_TEMP/sysroot/" "$DEPLOY_TARGET:sysroot/$DEPLOY_ID/"
 
       - name: Atomically swap sysroot on server
-        run: ssh "$DEPLOY_TARGET" "flux-deploy sysroot $DEPLOY_ID"
+        run: |
+          # DEPLOY_ID is meant to be expanded here, not on the server.
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_TARGET" "flux-deploy sysroot $DEPLOY_ID"

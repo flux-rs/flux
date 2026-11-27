@@ -44,7 +44,8 @@ runs:
     - name: Download and install fixpoint (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
-      run: |
+      # Only adds a fixed directory to GITHUB_PATH.
+      run: | # zizmor: ignore[github-env]
         $name = "fixpoint-x86_64-pc-windows.zip"
         $url = "https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/${name}"
         Write-Host "Downloading from $url"

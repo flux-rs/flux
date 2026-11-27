@@ -10,7 +10,7 @@ runs:
     - name: Download and install CVC5
       run: |
         set -e
-        VERSION="cvc5-${{ inputs.version }}"
+        VERSION="cvc5-${INPUTS_VERSION}"
         OS=$(uname -s)
         ARCH=$(uname -m)
         if [ "$OS" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
@@ -37,3 +37,5 @@ runs:
         rm -rf "$DIR" "$ZIP"
         cvc5 --version
       shell: bash
+      env:
+        INPUTS_VERSION: ${{ inputs.version }}
