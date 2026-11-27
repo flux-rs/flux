@@ -10,7 +10,7 @@ edition.workspace = true
 serde.workspace = true
 toml.workspace = true
 globset.workspace = true
-tracing = "0.1"
+tracing.workspace = true
 clap.workspace = true
 
 [lints]

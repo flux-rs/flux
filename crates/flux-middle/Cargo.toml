@@ -29,7 +29,7 @@ rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toposort-scc.workspace = true
-tracing = "0.1"
+tracing.workspace = true
 tempfile.workspace = true
 
 [package.metadata.rust-analyzer]

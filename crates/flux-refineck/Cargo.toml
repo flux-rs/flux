@@ -21,7 +21,7 @@ liquid-fixpoint.workspace = true
 itertools.workspace = true
 rustc-hash.workspace = true
 
-tracing = "0.1"
+tracing.workspace = true
 
 
 [package.metadata.rust-analyzer]
