@@ -26,7 +26,7 @@ use rustc_hir::{
 };
 use rustc_interface::interface::Compiler;
 use rustc_middle::{queries, ty::TyCtxt, util};
-use rustc_session::config::{JobsMode, OutputType};
+use rustc_session::{config::JobsMode, output::OutputType};
 
 use crate::collector::SpecCollector;
 

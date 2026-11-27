@@ -1,6 +1,13 @@
 //! Refinement type checking
 
-#![feature(associated_type_defaults, deref_patterns, min_specialization, rustc_private)]
+#![feature(
+    associated_type_defaults,
+    deref_patterns,
+    min_specialization,
+    register_tool,
+    rustc_private
+)]
+#![register_tool(lint)]
 
 extern crate rustc_abi;
 extern crate rustc_attr_ir;

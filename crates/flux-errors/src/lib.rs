@@ -16,7 +16,7 @@ use rustc_errors::{
     emitter::{Emitter, HumanReadableErrorType, OutputTheme, stderr_destination},
     json::JsonEmitter,
 };
-use rustc_session::{config, parse::ParseSess};
+use rustc_session::{config, output, parse::ParseSess};
 use rustc_span::source_map::SourceMap;
 
 pub struct FluxSession {
@@ -90,7 +90,7 @@ fn emitter(
     let source_map = if sopts.unstable_opts.link_only { None } else { Some(source_map) };
 
     match sopts.error_format {
-        config::ErrorOutputType::HumanReadable { kind, color_config } => {
+        output::ErrorOutputType::HumanReadable { kind, color_config } => {
             match kind {
                 HumanReadableErrorType { no_graphics, short, unicode } => {
                     let emitter = AnnotateSnippetEmitter::new(stderr_destination(color_config))
@@ -112,7 +112,7 @@ fn emitter(
                 }
             }
         }
-        config::ErrorOutputType::Json { pretty, json_rendered, color_config } => {
+        output::ErrorOutputType::Json { pretty, json_rendered, color_config } => {
             Box::new(
                 JsonEmitter::new(
                     Box::new(io::BufWriter::new(io::stderr())),
