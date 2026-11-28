@@ -160,6 +160,10 @@ impl LeanFmt for DataDecl {
                         WithLeanCtxt { item: &field.sort, cx }
                     )?;
                 }
+                writeln!(f, "  deriving Inhabited")?;
+                write!(f, "attribute [grind .] ")?;
+                self.name.lean_fmt(f, cx)?;
+                writeln!(f, ".ext")?;
             } else {
                 bug!("unexpected ctor {ctor:?} in datadecl");
             };
@@ -191,6 +195,7 @@ impl LeanFmt for DataDecl {
                 }
                 writeln!(f)?;
             }
+            writeln!(f, "deriving Inhabited")?;
         }
         // Needed so the sort can instantiate another sort's `[Inhabited t]` parameter,
         // e.g. `Outer (Inner Int)`.
