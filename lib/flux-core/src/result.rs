@@ -106,4 +106,18 @@ impl<T, E> Result<T, E> {
     fn expect_err(self, msg: &str) -> E
     where
         T: core::fmt::Debug;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1548
+    #[no_panic]
+    #[spec(fn(Result<T, E>[true]) -> T)]
+    unsafe fn unwrap_unchecked(self) -> T
+    where
+        E: core::fmt::Debug;
+
+    /// Core impl: https://github.com/rust-lang/rust/blob/c6a955468b025dbe3d1de3e8f3e30496d1fb7f40/library/core/src/result.rs#L1579
+    #[no_panic]
+    #[spec(fn(Result<T, E>[false]) -> E)]
+    unsafe fn unwrap_err_unchecked(self) -> E
+    where
+        T: core::fmt::Debug;
 }

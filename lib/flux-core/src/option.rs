@@ -61,6 +61,11 @@ impl<T> Option<T> {
     #[spec(fn(Option<T>[@b], F) -> T where F: FnOnce() -> T)]
     fn unwrap_or_else<F: FnOnce() -> T>(self, f: F) -> T;
 
+    /// Core impl: https://github.com/rust-lang/rust/blob/c871d09d1cc32a649f4c5177bb819646260ed120/library/core/src/option.rs#L1125
+    #[no_panic]
+    #[sig(fn(Option<T>[true]) -> T)]
+    const unsafe fn unwrap_unchecked(self) -> T;
+
     #[sig(fn(&Self[@b]) -> Option<&T>[b])]
     fn as_ref(&self) -> Option<&T>;
 
