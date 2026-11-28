@@ -375,6 +375,6 @@ You can do various other fun things, like
 
 [^1]: In the chapter on [extern specifications](06-extern-specs.md) we will explain how to "retrofit" these refinements onto the existing `std::option::Option` type.
 
-[flux-list-length]: https://github.com/flux-rs/flux/blob/main/tests/tests/pos/enums/list00.rs
+[flux-list-length]: https://github.com/flux-rs/flux/blob/main/tests/tests/with_deps/pos/enums/list00.rs
 [flux-list-elements]: https://github.com/flux-rs/flux/blob/main/tests/tests/pos/enums/list01.rs
 [zulip-timer]: https://flux-rs.zulipchat.com/#narrow/channel/486098-general/topic/greetings/near/509911720

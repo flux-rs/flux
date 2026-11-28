@@ -16,12 +16,14 @@ struct Vec<T, A: Allocator = Global>;
 
 #[extern_spec]
 impl<T> Vec<T> {
+    #[assume_parametric(T)]
     #[flux::sig(fn() -> Vec<T>[0])]
     fn new() -> Vec<T>;
 }
 
 #[extern_spec]
 impl<T, A: Allocator> Vec<T, A> {
+    #[assume_parametric(T)]
     #[spec(fn(self: &mut Vec<T, A>[@n], T) ensures self: Vec<T, A>[n+1])]
     fn push(v: &mut Vec<T, A>, value: T);
 }
@@ -31,6 +33,7 @@ impl<T, A: Allocator> Vec<T, A> {
     #[spec(fn(&Vec<T, A>[@n]) -> usize[n])]
     fn len(v: &Vec<T, A>) -> usize;
 
+    #[assume_parametric(T)]
     #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T>[n > 0] ensures self: Vec<T, A>[if n > 0 { n-1 } else { 0 }])]
     fn pop(&mut self) -> Option<T>;
 
@@ -40,6 +43,7 @@ impl<T, A: Allocator> Vec<T, A> {
 
 #[extern_spec]
 impl<T: Clone, A: Allocator + Clone> Clone for Vec<T, A> {
+    #[assume_parametric(T)]
     #[spec(fn(self: &Vec<T, A>[@n]) -> Vec<T, A>[n])]
     fn clone(&self) -> Vec<T, A>;
 }
@@ -63,8 +67,21 @@ impl<T, I: SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
 //---------------------------------------------------------------------------------------
 #[extern_spec]
 impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
+    #[assume_parametric(T)]
     #[spec(fn (&Vec<T, A>[@n]) -> <&Vec<T, A> as IntoIterator>::IntoIter[0,n])]
     fn into_iter(v: &'a Vec<T, A>) -> <&'a Vec<T, A> as IntoIterator>::IntoIter;
+}
+
+#[extern_spec(std::vec)]
+impl<T, A: Allocator> IntoIterator for Vec<T, A> {
+    #[assume_parametric(T)]
+    fn into_iter(self) -> <Vec<T, A> as IntoIterator>::IntoIter;
+}
+
+#[extern_spec(std::vec)]
+impl<T, A: Allocator> Iterator for std::vec::IntoIter<T, A> {
+    #[assume_parametric(T)]
+    fn next(&mut self) -> Option<T>;
 }
 
 #[extern_spec]
@@ -76,12 +93,14 @@ impl<T> FromIterator<T> for Vec<T> {}
 #[extern_spec(std::vec)]
 #[assoc(fn as_deref(v: Self, target: int) -> bool { v.len == target })]
 impl<T, A: Allocator> Deref for Vec<T, A> {
+    #[assume_parametric(T)]
     #[sig(fn(self: &Self[@v]) -> &[T][v])]
     fn deref(&self) -> &[T];
 }
 
 #[extern_spec(std::vec)]
 impl<T, A: Allocator> DerefMut for Vec<T, A> {
+    #[assume_parametric(T)]
     #[sig(fn(self: &mut Self[@v]) -> &mut [T][v])]
     fn deref_mut(&mut self) -> &mut [T];
 }

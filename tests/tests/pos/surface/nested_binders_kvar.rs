@@ -8,6 +8,7 @@ struct S<T> {
 #[flux::alias(type A[n: int] = S<i32[n]>[n])]
 type A = S<i32>;
 
+#[flux::assume_parametric(T)]
 fn test00<T>(x: &mut T) {}
 
 fn test01(x: &mut A) {

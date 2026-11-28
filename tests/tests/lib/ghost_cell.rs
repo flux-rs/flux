@@ -26,12 +26,14 @@ pub struct GhostCell<T: ?Sized> {
 }
 
 impl<T> GhostCell<T> {
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(value: T, token: &GhostToken[@id]) -> GhostCell<T>[id])]
     pub const fn new(value: T, _: &GhostToken) -> Self {
         Self { value: UnsafeCell::new(value) }
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     pub fn into_inner(self) -> T {
         self.value.into_inner()
@@ -39,18 +41,21 @@ impl<T> GhostCell<T> {
 }
 
 impl<T: ?Sized> GhostCell<T> {
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(&GhostCell<T>[id], &GhostToken[@id]) -> &T)]
     pub fn borrow<'a>(&'a self, _: &'a GhostToken) -> &'a T {
         unsafe { &*self.value.get() }
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     #[flux::sig(fn(&GhostCell<T>[id], &mut GhostToken[@id]) -> &mut T)]
     pub fn borrow_mut<'a>(&'a self, _: &'a mut GhostToken) -> &'a mut T {
         unsafe { &mut *self.value.get() }
     }
 
+    #[flux::assume_parametric(T)]
     #[flux::trusted]
     pub fn get_mut(&mut self) -> &mut T {
         unsafe { mem::transmute(self) }
@@ -59,6 +64,7 @@ impl<T: ?Sized> GhostCell<T> {
 
 #[forbid(unsafe_code)]
 impl<T> GhostCell<T> {
+    #[flux::assume_parametric(T)]
     #[flux::sig(fn(&GhostCell<T>[id], T, &mut GhostToken[@id]) -> T)]
     pub fn replace(&self, value: T, token: &mut GhostToken) -> T {
         mem::replace(self.borrow_mut(token), value)
