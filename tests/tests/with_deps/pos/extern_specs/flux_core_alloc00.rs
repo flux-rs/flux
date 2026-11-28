@@ -7,6 +7,11 @@ use core::alloc::Layout;
 struct Foo(u8);
 struct Zst;
 
+#[flux::spec(fn(Layout[@size, @align]) -> bool[size >= 0])]
+pub fn test_size_nonneg(_l: Layout) -> bool {
+    true
+}
+
 pub fn test_layout_new() {
     let x = Layout::new::<Foo>();
     let y = Layout::new::<i64>();
