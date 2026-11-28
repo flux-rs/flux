@@ -5,6 +5,7 @@ use flux_middle::{
     PlaceExt as _, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty,
 };
 use flux_rustc_bridge::{
+    lowering,
     mir::{
         BasicBlock, Body, BorrowKind, FIRST_VARIANT, FieldIdx, Local, Location,
         NonDivergingIntrinsic, Operand, Place, PlaceElem, PlaceRef, Rvalue, Statement,
@@ -278,16 +279,30 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
         for (statement_index, stmt) in data.statements.iter().enumerate() {
-            self.point = Point::BeforeLocation(Location { block: bb, statement_index });
+            self.before_location(Location { block: bb, statement_index }, &mut env)?;
             self.statement(stmt, &mut env)?;
         }
         if let Some(terminator) = &data.terminator {
-            self.point = Point::BeforeLocation(self.body.terminator_loc(bb));
+            self.before_location(self.body.terminator_loc(bb), &mut env)?;
             let successors = self.terminator(terminator, env)?;
             for (env, target) in successors {
                 self.point = Point::Edge(bb, target);
                 self.goto(target, env)?;
             }
+        }
+        Ok(())
+    }
+
+    fn before_location(&mut self, location: Location, env: &mut Env) -> QueryResult {
+        self.point = Point::BeforeLocation(location);
+        // A two-phase borrow is reserved before the other call arguments are
+        // evaluated. Those arguments may unfold the borrowed place again, so
+        // project it at activation as well. Both the inferred environment and
+        // the emitted ghost statements must reflect this fold before the call.
+        for place in self.body.activating_borrows(location) {
+            let place = lowering::lower_place(self.genv.tcx(), &place)
+                .expect("borrowed place was already lowered at its reservation");
+            M::projection(self, env, &place)?;
         }
         Ok(())
     }

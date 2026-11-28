@@ -110,13 +110,15 @@ impl GhostStatements {
                     Some(genv.fn_sig(def_id)?)
                 };
 
-            fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
-            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
             // We only add unblock statements for the main body because borrows in promoted constants
             // have to be live in the main body so they never go out of scope in the promoted body.
+            // Loan-end effects must precede folds/unfolds at the same location: unfolding a
+            // blocked place is a no-op and would leave it folded after the unblock.
             if !checker_id.is_promoted() {
                 stmts.add_unblocks(genv.tcx(), &body_root);
             }
+            fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
+            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
             stmts.dump_ghost_mir(genv.tcx(), body);
 
             Ok(stmts)

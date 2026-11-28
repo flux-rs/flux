@@ -481,6 +481,21 @@ impl<'tcx> Body<'tcx> {
         self.kind.select_body(&self.facts)
     }
 
+    /// Places whose two-phase mutable borrows activate at `location`.
+    pub fn activating_borrows(
+        &self,
+        location: Location,
+    ) -> impl Iterator<Item = rustc_middle::mir::Place<'tcx>> {
+        // The borrow set describes the main body, not its promoted constants.
+        let activations = match self.kind {
+            BodyKind::Main => self.facts.borrow_set.activations_at_location(&location),
+            BodyKind::Promoted(_) => &[],
+        };
+        activations
+            .iter()
+            .map(|idx| self.facts.borrow_set[*idx].borrowed_place())
+    }
+
     pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
         Location { block: bb, statement_index: self.basic_blocks[bb].statements.len() }
     }
